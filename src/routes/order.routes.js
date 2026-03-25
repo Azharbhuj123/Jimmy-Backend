@@ -1,0 +1,19 @@
+const router = require('express').Router();
+const { body } = require('express-validator');
+const ctrl = require('../controllers/order.controller');
+const { verifyToken } = require('../middlewares/auth.middleware');
+const validate = require('../middlewares/validate.middleware');
+
+const orderRules = [
+  body('productId').isMongoId().withMessage('Valid productId is required'),
+  body('selectedOptions').isArray().withMessage('selectedOptions must be an array'),
+];
+
+router.use(verifyToken);
+
+router.post('/', orderRules, validate, ctrl.createOrder);
+router.post('/calculate-price', orderRules, validate, ctrl.calculateOrderPrice);
+router.get('/', ctrl.getMyOrders);
+router.get('/:id', ctrl.getMyOrder);
+
+module.exports = router;

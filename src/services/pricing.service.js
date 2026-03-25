@@ -1,0 +1,144 @@
+const Product = require('../models/Product');
+const ApiError = require('../utils/ApiError');
+
+/**
+ * Calculate the final price for a product given selected options.
+ *
+ * Pricing rules:
+ *  - Start with product.basePrice
+ *  - For each step, the user selects one option
+ *  - Option modifierType 'fixed'      → add priceModifier to running total
+ *  - Option modifierType 'percentage' → multiply running total by (1 + priceModifier/100)
+ *
+ * @param {string} productId
+ * @param {Array}  selectedOptions  [{ stepKey, optionValue }]
+ * @returns {{ basePrice, calculatedPrice, priceBreakdown, enrichedOptions }}
+ */
+const calculatePrice = async (productId, selectedOptions = []) => {
+  const product = await Product.findById(productId);
+  if (!product) throw new ApiError(404, 'Product not found');
+  if (!product.isActive) throw new ApiError(400, 'Product is not available');
+
+  let runningPrice = product.basePrice;
+  const priceBreakdown = [{ label: 'Base Price', amount: product.basePrice, runningTotal: runningPrice }];
+  const enrichedOptions = [];
+  const errors = [];
+
+  for (const step of product.steps) {
+    const userSelection = selectedOptions.find((s) => s.stepKey === step.key);
+
+    if (!userSelection) {
+      if (step.isRequired) {
+        errors.push(`Step "${step.title}" is required.`);
+      }
+      continue;
+    }
+
+    const chosenOption = step.options.find((o) => o.value === userSelection.optionValue);
+    if (!chosenOption) {
+      errors.push(`Invalid option "${userSelection.optionValue}" for step "${step.title}".`);
+      continue;
+    }
+
+    let adjustment = 0;
+    if (chosenOption.modifierType === 'percentage') {
+      adjustment = (runningPrice * chosenOption.priceModifier) / 100;
+    } else {
+      adjustment = chosenOption.priceModifier;
+    }
+
+    runningPrice += adjustment;
+    runningPrice = Math.max(0, runningPrice); // price can never go negative
+
+    priceBreakdown.push({
+      label: `${step.title}: ${chosenOption.label}`,
+      modifierType: chosenOption.modifierType,
+      modifier: chosenOption.priceModifier,
+      adjustment,
+      runningTotal: parseFloat(runningPrice.toFixed(2)),
+    });
+
+    enrichedOptions.push({
+      stepKey: step.key,
+      stepTitle: step.title,
+      optionLabel: chosenOption.label,
+      optionValue: chosenOption.value,
+      priceModifier: chosenOption.priceModifier,
+      modifierType: chosenOption.modifierType,
+    });
+  }
+
+  if (errors.length > 0) {
+    throw new ApiError(400, 'Invalid configuration', errors.map((e) => ({ message: e })));
+  }
+
+  return {
+    basePrice: product.basePrice,
+    calculatedPrice: parseFloat(runningPrice.toFixed(2)),
+    priceBreakdown,
+    enrichedOptions,
+    productName: product.name,
+  };
+};
+
+/**
+ * Get revenue analytics per product
+ */
+const getProductAnalytics = async (productId, days = 30) => {
+  const Order = require('../models/Order');
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const analytics = await Order.aggregate([
+    {
+      $match: {
+        productId: new (require('mongoose').Types.ObjectId)(productId),
+        status: 'paid',
+        createdAt: { $gte: since },
+      },
+    },
+    {
+      $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+        dailyRevenue: { $sum: '$calculatedPrice' },
+        dailyOrders: { $sum: 1 },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  const totalPayout = analytics.reduce((sum, d) => sum + d.dailyRevenue, 0);
+  const totalOrders = analytics.reduce((sum, d) => sum + d.dailyOrders, 0);
+
+  return { analytics, totalPayout, totalOrders, days };
+};
+
+/**
+ * Get revenue analytics per day across all products
+ */
+const getDailyRevenueAnalytics = async (days = 30) => {
+  const Order = require('../models/Order');
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const analytics = await Order.aggregate([
+    {
+      $match: {
+        status: 'paid',
+        createdAt: { $gte: since },
+      },
+    },
+    {
+      $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+        revenue: { $sum: '$calculatedPrice' },
+        orders: { $sum: 1 },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  return analytics;
+};
+
+module.exports = { calculatePrice, getProductAnalytics, getDailyRevenueAnalytics };
