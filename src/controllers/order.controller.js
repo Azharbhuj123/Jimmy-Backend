@@ -1,27 +1,54 @@
 const Order = require('../models/Order');
+const Product = require('../models/Product');
 const ApiResponse = require('../utils/ApiResponse');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
-const { calculatePrice } = require('../services/pricing.service');
+const { calculateMultiPrice, calculatePrice } = require('../services/pricing.service');
 const { sendOrderCreatedEmail } = require('../services/email.service');
 const { getPaginationOptions, buildPaginationMeta } = require('../utils/pagination');
-const Product = require('../models/Product');
 
+// POST /orders/calculate-price
+const calculateOrderPrice = asyncHandler(async (req, res) => {
+  const { items } = req.body;
+
+  if (!Array.isArray(items) || !items.length) {
+    throw new ApiError(400, 'items must be a non-empty array');
+  }
+
+  const result = await calculateMultiPrice(items);
+  ApiResponse.success(res, result, 'Price calculated');
+});
+
+// POST /orders
 const createOrder = asyncHandler(async (req, res) => {
-  const { productId, selectedOptions, notes } = req.body;
+  const { items, fulfillmentType, shippingDetails, pickupDetails, notes } = req.body;
   const user = req.user;
 
-  // Calculate price using pricing engine
-  const { basePrice, calculatedPrice, priceBreakdown, enrichedOptions, productName } =
-    await calculatePrice(productId, selectedOptions);
+  if (!Array.isArray(items) || !items.length) {
+    throw new ApiError(400, 'items must be a non-empty array');
+  }
+
+  // Calculate prices for all items
+  const priceResult = await calculateMultiPrice(items);
+
+  // Build order items
+  const orderItems = priceResult.items.map((r) => ({
+    productId: r.productId,
+    productName: r.productName,
+    selectedOptions: r.enrichedOptions,
+    basePrice: r.basePrice,
+    calculatedPrice: r.calculatedPrice,
+    priceBreakdown: r.priceBreakdown,
+  }));
 
   const order = await Order.create({
     userId: user._id,
-    productId,
-    selectedOptions: enrichedOptions,
-    basePrice,
-    calculatedPrice,
-    priceBreakdown,
+    items: orderItems,
+    totalBasePrice: priceResult.totalBasePrice,
+    totalCalculatedPrice: priceResult.totalCalculatedPrice,
+    fulfillmentType: fulfillmentType || 'shipping',
+    shippingDetails: fulfillmentType !== 'pickup' ? shippingDetails : undefined,
+    pickupDetails: fulfillmentType === 'pickup' ? pickupDetails : undefined,
     notes,
     userDetails: {
       name: user.name,
@@ -31,19 +58,17 @@ const createOrder = asyncHandler(async (req, res) => {
     statusHistory: [{ status: 'pending', note: 'Order placed by user' }],
   });
 
-  await order.populate('productId', 'name');
-
-  // Update product stats
-  await Product.findByIdAndUpdate(productId, {
-    $inc: { totalOrders: 1 },
-  });
+  // Increment totalOrders on each product (non-blocking)
+  const productIds = [...new Set(orderItems.map((i) => i.productId.toString()))];
+  Product.updateMany({ _id: { $in: productIds } }, { $inc: { totalOrders: 1 } }).catch(() => {});
 
   // Send confirmation email (non-blocking)
-  sendOrderCreatedEmail(order, user);
+  sendOrderCreatedEmail(order, user).catch(() => {});
 
   ApiResponse.success(res, { order }, 'Order placed successfully', 201);
 });
 
+// GET /orders
 const getMyOrders = asyncHandler(async (req, res) => {
   const { page, limit, skip, sort } = getPaginationOptions(req.query);
   const { status } = req.query;
@@ -53,7 +78,7 @@ const getMyOrders = asyncHandler(async (req, res) => {
 
   const [orders, total] = await Promise.all([
     Order.find(filter)
-      .populate('productId', 'name basePrice images')
+      .populate('items.productId', 'name basePrice images')
       .sort(sort)
       .skip(skip)
       .limit(limit),
@@ -63,17 +88,14 @@ const getMyOrders = asyncHandler(async (req, res) => {
   ApiResponse.paginated(res, orders, buildPaginationMeta(total, page, limit));
 });
 
+// GET /orders/:id
 const getMyOrder = asyncHandler(async (req, res) => {
-  const order = await Order.findOne({ _id: req.params.id, userId: req.user._id })
-    .populate('productId', 'name basePrice images steps');
+  const order = await Order.findOne({ _id: req.params.id, userId: req.user._id }).populate(
+    'items.productId',
+    'name basePrice images steps'
+  );
   if (!order) throw new ApiError(404, 'Order not found');
   ApiResponse.success(res, { order });
-});
-
-const calculateOrderPrice = asyncHandler(async (req, res) => {
-  const { productId, selectedOptions } = req.body;
-  const result = await calculatePrice(productId, selectedOptions);
-  ApiResponse.success(res, result, 'Price calculated');
 });
 
 module.exports = { createOrder, getMyOrders, getMyOrder, calculateOrderPrice };

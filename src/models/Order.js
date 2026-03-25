@@ -17,8 +17,55 @@ const statusHistorySchema = new mongoose.Schema(
     status: { type: String, required: true },
     changedAt: { type: Date, default: Date.now },
     note: { type: String },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   { _id: false }
+);
+
+const shippingDetailsSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true },
+    phone: { type: String, trim: true },
+    addressLine1: { type: String, trim: true },
+    city: { type: String, trim: true },
+    state: { type: String, trim: true },
+    zipCode: { type: String, trim: true },
+    country: { type: String, trim: true, default: 'US' },
+    labelUrl: { type: String, trim: true },
+    trackingNumber: { type: String, trim: true },
+    courier: { type: String, trim: true }, // UPS, FedEx, USPS, etc.
+    shippedAt: { type: Date },
+  },
+  { _id: false }
+);
+
+const pickupDetailsSchema = new mongoose.Schema(
+  {
+    address: { type: String, trim: true },
+    zipCode: { type: String, trim: true },
+    date: { type: Date },
+    timeSlot: { type: String, trim: true }, // e.g. "10:00 AM - 12:00 PM"
+    notes: { type: String, trim: true },
+    driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
+  },
+  { _id: false }
+);
+
+// Per-item breakdown inside a multi-product order
+const orderItemSchema = new mongoose.Schema(
+  {
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true,
+    },
+    productName: { type: String },
+    selectedOptions: [selectedOptionSchema],
+    basePrice: { type: Number, required: true },
+    calculatedPrice: { type: Number, required: true },
+    priceBreakdown: { type: mongoose.Schema.Types.Mixed },
+  },
+  { _id: true }
 );
 
 const orderSchema = new mongoose.Schema(
@@ -32,39 +79,53 @@ const orderSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    productId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product',
-      required: true,
-    },
-    selectedOptions: [selectedOptionSchema],
-    basePrice: {
-      type: Number,
-      required: true,
-    },
-    calculatedPrice: {
-      type: Number,
-      required: true,
-    },
-    priceBreakdown: {
-      type: mongoose.Schema.Types.Mixed, // detailed breakdown
-    },
+
+    // ── Multi-product support ─────────────────────────────────────────────────
+    items: [orderItemSchema],
+
+    // Totals across all items
+    totalBasePrice: { type: Number, required: true },
+    totalCalculatedPrice: { type: Number, required: true },
+
+    // ── Status ────────────────────────────────────────────────────────────────
     status: {
       type: String,
-      enum: ['pending', 'confirmed', 'received', 'inspected', 'paid'],
+      enum: ['pending', 'confirmed', 'label_sent', 'shipped', 'received', 'inspected', 'paid'],
       default: 'pending',
     },
     statusHistory: [statusHistorySchema],
+
+    // ── Fulfillment type ─────────────────────────────────────────────────────
+    fulfillmentType: {
+      type: String,
+      enum: ['shipping', 'pickup'],
+      default: 'shipping',
+    },
+    shippingDetails: shippingDetailsSchema,
+    pickupDetails: pickupDetailsSchema,
+
+    // ── Payment (admin sends manually) ───────────────────────────────────────
+    paymentMethod: {
+      type: String,
+      enum: ['zelle', 'paypal', 'apple_pay', 'venmo', 'check'],
+    },
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'sent', 'failed'],
+      default: 'pending',
+    },
+    transactionId: { type: String, trim: true },
+    paidAt: { type: Date },
+
+    // ── User snapshot ─────────────────────────────────────────────────────────
     userDetails: {
       name: String,
       email: String,
       phone: String,
       address: String,
     },
-    notes: {
-      type: String,
-      trim: true,
-    },
+
+    notes: { type: String, trim: true },
   },
   { timestamps: true }
 );

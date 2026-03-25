@@ -13,5 +13,6 @@ router.use('/users', require('./user.routes'));
 router.use('/contacts', require('./contact.routes'));
 router.use('/faqs', require('./faq.routes'));
 router.use('/blogs', require('./blog.routes'));
+router.use('/pickups', require('./pickup.routes'));
 
 module.exports = router;
