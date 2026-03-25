@@ -26,7 +26,9 @@ router.put(
 
 router.put(
   '/:id/pay',
-  [body('paymentMethod').notEmpty().withMessage('paymentMethod is required')],
+  [body('paymentMethod').notEmpty().withMessage('paymentMethod is required'),
+  body('transactionId').notEmpty().withMessage('transactionId is required')
+  ],
   validate,
   ctrl.markPaymentSent
 );
