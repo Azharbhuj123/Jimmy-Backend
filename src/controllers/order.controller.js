@@ -9,13 +9,8 @@ const { getPaginationOptions, buildPaginationMeta } = require('../utils/paginati
 
 // POST /orders/calculate-price
 const calculateOrderPrice = asyncHandler(async (req, res) => {
-  const { items } = req.body;
-
-  if (!Array.isArray(items) || !items.length) {
-    throw new ApiError(400, 'items must be a non-empty array');
-  }
-
-  const result = await calculateMultiPrice(items);
+  const { productId, selectedOptions } = req.body;
+  const result = await calculatePrice(productId, selectedOptions);
   ApiResponse.success(res, result, 'Price calculated');
 });
 
@@ -60,10 +55,10 @@ const createOrder = asyncHandler(async (req, res) => {
 
   // Increment totalOrders on each product (non-blocking)
   const productIds = [...new Set(orderItems.map((i) => i.productId.toString()))];
-  Product.updateMany({ _id: { $in: productIds } }, { $inc: { totalOrders: 1 } }).catch(() => {});
+  Product.updateMany({ _id: { $in: productIds } }, { $inc: { totalOrders: 1 } }).catch(() => { });
 
   // Send confirmation email (non-blocking)
-  sendOrderCreatedEmail(order, user).catch(() => {});
+  sendOrderCreatedEmail(order, user).catch(() => { });
 
   ApiResponse.success(res, { order }, 'Order placed successfully', 201);
 });

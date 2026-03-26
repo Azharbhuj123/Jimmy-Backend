@@ -107,7 +107,7 @@ const orderSchema = new mongoose.Schema(
     },
     statusHistory: [statusHistorySchema],
 
-    // ── Fulfillment type ─────────────────────────────────────────────────────
+    // ── Fulfillment type  ─────────────────────
     fulfillmentType: {
       type: String,
       enum: ["shipping", "pickup"],
@@ -129,7 +129,7 @@ const orderSchema = new mongoose.Schema(
     transactionId: { type: String, trim: true },
     paidAt: { type: Date },
 
-    // ── User snapshot ─────────────────────────────────────────────────────────
+    // ── User snapshot  ─────────────────────────────
     userDetails: {
       name: String,
       email: String,

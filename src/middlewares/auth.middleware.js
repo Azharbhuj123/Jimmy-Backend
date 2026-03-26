@@ -54,3 +54,4 @@ const isUser = asyncHandler(async (req, res, next) => {
 });
 
 module.exports = { verifyToken, isAdmin, isUser };
+ 
