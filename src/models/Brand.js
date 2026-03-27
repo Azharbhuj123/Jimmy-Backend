@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 const brandSchema = new mongoose.Schema(
   {
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',
+      required: [true, 'Category is required'],
+    },
     name: {
       type: String,
       required: [true, 'Brand name is required'],

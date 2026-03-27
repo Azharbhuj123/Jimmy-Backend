@@ -11,14 +11,14 @@ const createBrand = asyncHandler(async (req, res) => {
 
 const getBrands = asyncHandler(async (req, res) => {
   const { page, limit, skip, sort } = getPaginationOptions(req.query);
-  const { search, isActive } = req.query;
+  const { search, isActive, } = req.query;
 
   const filter = {};
   if (search) filter.name = { $regex: search, $options: 'i' };
   if (isActive !== undefined) filter.isActive = isActive === 'true';
 
   const [brands, total] = await Promise.all([
-    Brand.find(filter).sort(sort).skip(skip).limit(limit),
+    Brand.find(filter).sort(sort).skip(skip).limit(limit).populate('categoryId','name'),
     Brand.countDocuments(filter),
   ]);
 

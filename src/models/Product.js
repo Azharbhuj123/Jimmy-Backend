@@ -5,6 +5,7 @@ const stepOptionSchema = new mongoose.Schema(
   {
     label: { type: String, required: true, trim: true },
     value: { type: String, required: true, trim: true },
+    subtext: { type: String, trim: true },
     priceModifier: { type: Number, required: true, default: 0 }, // +/- amount OR multiplier
     modifierType: {
       type: String,
