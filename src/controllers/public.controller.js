@@ -12,7 +12,7 @@ const getFAQs = asyncHandler(async (req, res) => {
   const { category } = req.query;
   const filter = { isActive: true };
   if (category) filter.category = category;
-  const faqs = await FAQ.find(filter).sort({ order: 1 });
+  const faqs = await FAQ.find(filter).sort({ order: 1 }).limit(20);
   ApiResponse.success(res, { faqs });
 });
 
@@ -40,7 +40,7 @@ const getBlog = asyncHandler(async (req, res) => {
 
 const getCategories = asyncHandler(async (req, res) => {
   const { page, limit, skip, sort } = getPaginationOptions(req.query);
-  const { search, isActive } = req.query;
+  const { search, isActive, } = req.query;
 
   const filter = { isActive: true };
   if (search && search !== 'All Items') filter.name = { $regex: search, $options: 'i' };
@@ -55,8 +55,20 @@ const getCategories = asyncHandler(async (req, res) => {
 });
 
 const getBrands = asyncHandler(async (req, res) => {
-  const brands = await Brand.find({ isActive: true }).sort({ name: 1 });
-  ApiResponse.success(res, { brands });
+  const { page, limit, skip, sort } = getPaginationOptions(req.query);
+  const { search, isActive, categoryId } = req.query;
+
+  const filter = {};
+  if (search) filter.name = { $regex: search, $options: 'i' };
+  if (isActive !== undefined) filter.isActive = isActive === 'true';
+  if (categoryId) filter.categoryId = categoryId
+
+  const [brands, total] = await Promise.all([
+    Brand.find(filter).sort(sort).skip(skip).limit(limit).populate('categoryId', 'name'),
+    Brand.countDocuments(filter),
+  ]);
+
+  ApiResponse.paginated(res, brands, buildPaginationMeta(total, page, limit));
 });
 
 
