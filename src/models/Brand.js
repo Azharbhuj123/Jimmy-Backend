@@ -22,7 +22,7 @@ const brandSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    logo: {
+    image: {
       type: String,
     },
     website: {

@@ -3,6 +3,7 @@ const { body } = require('express-validator');
 const publicCtrl = require('../controllers/public.controller');
 const contactCtrl = require('../controllers/contact.controller');
 const validate = require('../middlewares/validate.middleware');
+const upload = require('../middlewares/upload.middleware');
 
 const contactRules = [
   body('name').trim().notEmpty().withMessage('Name is required'),
@@ -16,5 +17,7 @@ router.get('/blogs/:slug', publicCtrl.getBlog);
 router.get('/categories', publicCtrl.getCategories);
 router.get('/brands', publicCtrl.getBrands);
 router.post('/contact', contactRules, validate, contactCtrl.submitContact);
+router.post('/upload', upload.single('file'),  publicCtrl.uploadFile);
+
 
 module.exports = router;

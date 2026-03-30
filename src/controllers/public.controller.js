@@ -5,6 +5,8 @@ const Brand = require('../models/Brand');
 const ApiResponse = require('../utils/ApiResponse');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
+const { uploadToS3 } = require('../services/upload.service');
+const { getPaginationOptions, buildPaginationMeta } = require('../utils/pagination');
 
 const getFAQs = asyncHandler(async (req, res) => {
   const { category } = req.query;
@@ -37,8 +39,19 @@ const getBlog = asyncHandler(async (req, res) => {
 });
 
 const getCategories = asyncHandler(async (req, res) => {
-  const categories = await Category.find({ isActive: true }).sort({ name: 1 });
-  ApiResponse.success(res, { categories });
+  const { page, limit, skip, sort } = getPaginationOptions(req.query);
+  const { search, isActive } = req.query;
+
+  const filter = { isActive: true };
+  if (search && search !== 'All Items') filter.name = { $regex: search, $options: 'i' };
+  if (isActive !== undefined) filter.isActive = isActive === 'true';
+
+  const [categories, total] = await Promise.all([
+    Category.find(filter).sort(sort).skip(skip).limit(limit),
+    Category.countDocuments(filter),
+  ]);
+
+  ApiResponse.paginated(res, categories, buildPaginationMeta(total, page, limit));
 });
 
 const getBrands = asyncHandler(async (req, res) => {
@@ -46,4 +59,13 @@ const getBrands = asyncHandler(async (req, res) => {
   ApiResponse.success(res, { brands });
 });
 
-module.exports = { getFAQs, getBlogs, getBlog, getCategories, getBrands };
+
+const uploadFile = asyncHandler(async (req, res) => {
+  const file = req.file;
+  if (!file) throw new ApiError(400, "No file uploaded");
+  const s3Url = await uploadToS3(file.buffer, file.originalname, "images");
+  ApiResponse.success(res, { url: s3Url }, 'File uploaded successfully', 200);
+});
+
+
+module.exports = { getFAQs, getBlogs, getBlog, getCategories, getBrands, uploadFile };
