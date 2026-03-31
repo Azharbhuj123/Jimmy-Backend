@@ -27,8 +27,11 @@ router.post(
 );
 
 router.post(
-  '/reset-password/:token',
-  [body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')],
+  '/reset-password',
+  [
+    body('code').notEmpty().withMessage('Reset code is required'),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  ],
   validate,
   ctrl.resetPassword
 );

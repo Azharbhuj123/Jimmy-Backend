@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-    resetPasswordToken: {
+    resetPasswordCode: {
       type: String,
       select: false,
     },
@@ -61,7 +61,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 userSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
-  delete obj.resetPasswordToken;
+  delete obj.resetPasswordCode;
   delete obj.resetPasswordExpires;
   return obj;
 };

@@ -80,6 +80,7 @@ const calculatePrice = async (productId, selectedOptionsArr = []) => {
     priceBreakdown,
     selectedOptions,
     productName: product.name,
+    productImage: product.images,
     productId: product._id,
   };
 };

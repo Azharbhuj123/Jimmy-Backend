@@ -38,29 +38,28 @@ const forgotPassword = async (email) => {
   // Always respond success to prevent email enumeration
   if (!user) return;
 
-  const rawToken = crypto.randomBytes(32).toString('hex');
-  const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const resetCode = Math.floor(10000 + Math.random() * 90000).toString(); // Random 5-digit code
+  const hashedCode = crypto.createHash('sha256').update(resetCode).digest('hex');
 
-  user.resetPasswordToken = hashedToken;
-  user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+  user.resetPasswordCode = hashedCode;
+  user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
   await user.save({ validateBeforeSave: false });
 
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${rawToken}`;
-  await sendPasswordResetEmail(user, resetUrl);
+  await sendPasswordResetEmail(user, resetCode);
 };
 
-const resetPassword = async (rawToken, newPassword) => {
-  const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+const resetPassword = async (resetCode, newPassword) => {
+  const hashedCode = crypto.createHash('sha256').update(resetCode).digest('hex');
 
   const user = await User.findOne({
-    resetPasswordToken: hashedToken,
+    resetPasswordCode: hashedCode,
     resetPasswordExpires: { $gt: Date.now() },
-  }).select('+resetPasswordToken +resetPasswordExpires');
+  }).select('+resetPasswordCode +resetPasswordExpires');
 
-  if (!user) throw new ApiError(400, 'Reset token is invalid or has expired.');
+  if (!user) throw new ApiError(400, 'Reset code is invalid or has expired.');
 
   user.password = newPassword;
-  user.resetPasswordToken = undefined;
+  user.resetPasswordCode = undefined;
   user.resetPasswordExpires = undefined;
   await user.save();
 

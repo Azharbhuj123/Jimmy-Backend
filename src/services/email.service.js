@@ -206,20 +206,20 @@ const sendPaymentSentEmail = async (order, user) => {
 // 5. PASSWORD RESET
 // ────────────────────────────────────────────────────────────────────────────
 
-const sendPasswordResetEmail = async (user, resetUrl) => {
+const sendPasswordResetEmail = async (user, resetCode) => {
   await sendEmail({
     to: user.email,
-    subject: 'Password Reset Request',
+    subject: 'Password Reset Code',
     html: emailWrapper(`
       <h3 style="color:#1a1a2e;">Reset Your Password</h3>
       <p>Hi <strong>${user.name}</strong>, you requested to reset your password.</p>
+      <p>Use the following code to reset your password:</p>
       <div style="margin:24px 0;text-align:center;">
-        <a href="${resetUrl}" style="display:inline-block;background:#1a1a2e;color:#fff;padding:14px 28px;text-decoration:none;border-radius:6px;font-size:15px;">
-          Reset Password
-        </a>
+        <div style="display:inline-block;background:#1a1a2e;color:#fff;padding:20px 32px;border-radius:6px;font-size:32px;font-weight:bold;letter-spacing:4px;font-family:monospace;">
+          ${resetCode}
+        </div>
       </div>
-      <p style="color:#aaa;font-size:13px;">This link expires in 1 hour. If you did not request a reset, please ignore this email.</p>
-      <p style="color:#aaa;font-size:12px;">Or copy this URL: ${resetUrl}</p>
+      <p style="color:#aaa;font-size:13px;">This code expires in 15 minutes. If you did not request a reset, please ignore this email.</p>
     `),
   });
 };

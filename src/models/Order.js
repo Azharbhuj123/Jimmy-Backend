@@ -81,8 +81,8 @@ const orderSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
     },
+    guest_email: { type: String, trim: true },
 
     // ── Multi-product support ─────────────────────────────────────────────────
     items: [orderItemSchema],

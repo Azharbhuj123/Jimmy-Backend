@@ -7,6 +7,7 @@ const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const { uploadToS3 } = require('../services/upload.service');
 const { getPaginationOptions, buildPaginationMeta } = require('../utils/pagination');
+const { calculatePrice } = require('../services/pricing.service');
 
 const getFAQs = asyncHandler(async (req, res) => {
   const { category } = req.query;
@@ -79,5 +80,12 @@ const uploadFile = asyncHandler(async (req, res) => {
   ApiResponse.success(res, { url: s3Url }, 'File uploaded successfully', 200);
 });
 
+const calculateOrderPrice = asyncHandler(async (req, res) => {
+  const { productId, selectedOptions } = req.body;
+  const result = await calculatePrice(productId, selectedOptions);
+  ApiResponse.success(res, result, 'Price calculated');
+});
 
-module.exports = { getFAQs, getBlogs, getBlog, getCategories, getBrands, uploadFile };
+
+
+module.exports = { getFAQs, getBlogs, getBlog, getCategories, getBrands, uploadFile,calculateOrderPrice };

@@ -26,9 +26,8 @@ const forgotPassword = asyncHandler(async (req, res) => {
 });
 
 const resetPassword = asyncHandler(async (req, res) => {
-  const { token } = req.params;
-  const { password } = req.body;
-  const result = await authService.resetPassword(token, password);
+  const { code, password } = req.body;
+  const result = await authService.resetPassword(code, password);
   ApiResponse.success(res, result, 'Password reset successful');
 });
 

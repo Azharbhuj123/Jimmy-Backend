@@ -220,25 +220,24 @@ Request a password reset email. Always returns success to prevent email enumerat
 ```json
 {
   "success": true,
-  "message": "If that email exists, a reset link has been sent.",
+  "message": "If that email exists, a reset code has been sent.",
   "data": {}
 }
 ```
 
-> 📧 **Email Trigger:** Sends a reset link valid for **1 hour** to the user's email.
+> 📧 **Email Trigger:** Sends a 5-digit reset code valid for **15 minutes** to the user's email.
 
 ---
 
-### `POST /auth/reset-password/:token`
+### `POST /auth/reset-password`
 
-Reset password using the token received via email.
-
-**URL Params:** `token` — raw reset token from the email link
+Reset password using the code received via email.
 
 **Body:**
 
 ```json
 {
+  "code": "12345",
   "password": "newpassword123"
 }
 ```
@@ -256,7 +255,7 @@ Reset password using the token received via email.
 }
 ```
 
-**Errors:** `400` Token invalid or expired
+**Errors:** `400` Reset code invalid or expired
 
 ---
 

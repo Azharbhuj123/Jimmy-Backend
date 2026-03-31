@@ -7,7 +7,7 @@ const validate = require('../middlewares/validate.middleware');
 router.use(verifyToken);
 
 router.post('/', validate, ctrl.createOrder);
-router.post('/calculate-price',  validate, ctrl.calculateOrderPrice);
+router.post('/calculate-price',   ctrl.calculateOrderPrice);
 router.get('/', ctrl.getMyOrders);
 router.get('/:id', ctrl.getMyOrder);
 

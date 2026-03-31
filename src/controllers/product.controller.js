@@ -13,7 +13,7 @@ const getProducts = asyncHandler(async (req, res) => {
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
   // 1. Build the Dynamic Query Object
-  const query = { isActive: true };
+  const query = { isActive: true, steps: { $ne: [] } };
 
   // Search by Product Name (Case-insensitive partial match)
   if (search) {
@@ -81,7 +81,7 @@ const getMostPopularProducts = asyncHandler(async (req, res) => {
   // 1. Fetch top 4 products sorted by totalOrders
   // We filter by isActive: true to ensure we don't show disabled products
   const products = await Product.find({ isActive: true })
-  .select("name basePrice badges images")
+    .select("name basePrice badges images")
     .sort({ totalOrders: -1 })
     .limit(4)
     .populate('brandId', 'name') // Optional: includes brand name
@@ -110,7 +110,7 @@ const getProduct = asyncHandler(async (req, res) => {
     .populate('categoryId', 'name slug')
     .populate('brandId', 'name slug logo');
   if (!product) throw new ApiError(404, 'Product not found');
-  ApiResponse.success(res, { product });
+  ApiResponse.success(res, product);
 });
 
 const getProductBySlug = asyncHandler(async (req, res) => {
