@@ -44,7 +44,7 @@ const createOrder = asyncHandler(async (req, res) => {
     fulfillmentType: fulfillmentType || 'shipping',
     shippingDetails: fulfillmentType !== 'pickup' ? shippingDetails : undefined,
     pickupDetails: fulfillmentType === 'pickup' ? pickupDetails : undefined,
-    notes: notes || "",
+    notes,
     userDetails: {
       name: user.name,
       email: user.email,

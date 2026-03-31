@@ -27,7 +27,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
 const emailWrapper = (body) => `
   <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#333;">
     <div style="background:#1a1a2e;padding:20px 24px;border-radius:8px 8px 0 0;">
-      <h2 style="color:#fff;margin:0;font-size:20px;">BuyBack Platform</h2>
+      <h2 style="color:#fff;margin:0;font-size:20px;">QuickieCell</h2>
     </div>
     <div style="padding:28px 24px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 8px 8px;background:#fff;">
       ${body}
@@ -249,6 +249,33 @@ const sendPickupScheduledEmail = async (order, user) => {
   });
 };
 
+// ────────────────────────────────────────────────────────────────────────────
+// 7. CONTACT FORM SUBMISSION
+// ────────────────────────────────────────────────────────────────────────────
+
+const sendContactNotificationEmail = async (contact) => {
+  const adminEmail = process.env.EMAIL_FROM;
+
+  await sendEmail({
+    to: adminEmail,
+    subject: `New Contact Form Submission — ${contact.name}`,
+    html: emailWrapper(`
+      <h3 style="color:#1a1a2e;">📬 New Contact Form Submission</h3>
+      <p>You have received a new message from a visitor.</p>
+      ${table([
+        infoRow('Name', contact.name),
+        infoRow('Email', `<a href="mailto:${contact.email}" style="color:#1a1a2e;text-decoration:none;">${contact.email}</a>`),
+        infoRow('Phone', contact.phone || '—'),
+        infoRow('Company Name', contact.company_name || '—'),
+        infoRow('Submitted At', new Date(contact.createdAt).toLocaleString()),
+      ])}
+      <h4 style="margin-top:20px;color:#1a1a2e;">Message:</h4>
+      <div style="background:#f9f9f9;padding:16px;border-left:4px solid #1a1a2e;border-radius:4px;margin:12px 0;white-space:pre-wrap;word-wrap:break-word;">${contact.message}</div>
+      
+    `),
+  });
+};
+
 module.exports = {
   sendEmail,
   sendOrderCreatedEmail,
@@ -257,4 +284,5 @@ module.exports = {
   sendPaymentSentEmail,
   sendPasswordResetEmail,
   sendPickupScheduledEmail,
+  sendContactNotificationEmail,
 };

@@ -55,6 +55,20 @@ const getCategories = asyncHandler(async (req, res) => {
   ApiResponse.paginated(res, categories, buildPaginationMeta(total, page, limit));
 });
 
+const getAllCategories = asyncHandler(async (req, res) => {
+
+
+  const filter = { isActive: true };
+  const categories = await Category.find(filter,"name image").lean();
+  ApiResponse.success(res, categories);
+
+});
+
+
+
+
+
+
 const getBrands = asyncHandler(async (req, res) => {
   const { page, limit, skip, sort } = getPaginationOptions(req.query);
   const { search, isActive, categoryId } = req.query;
@@ -88,4 +102,4 @@ const calculateOrderPrice = asyncHandler(async (req, res) => {
 
 
 
-module.exports = { getFAQs, getBlogs, getBlog, getCategories, getBrands, uploadFile,calculateOrderPrice };
+module.exports = { getFAQs, getBlogs, getBlog, getCategories, getBrands, uploadFile, calculateOrderPrice, getAllCategories };

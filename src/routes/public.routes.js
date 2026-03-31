@@ -16,6 +16,7 @@ router.get('/faqs', publicCtrl.getFAQs);
 router.get('/blogs', publicCtrl.getBlogs);
 router.get('/blogs/:slug', publicCtrl.getBlog);
 router.get('/categories', publicCtrl.getCategories);
+router.get('/all-categories', publicCtrl.getAllCategories);
 router.get('/brands', publicCtrl.getBrands);
 router.post('/contact', contactRules, validate, contactCtrl.submitContact);
 router.post('/upload', upload.single('file'),  publicCtrl.uploadFile);

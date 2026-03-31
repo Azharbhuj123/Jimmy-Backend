@@ -1,4 +1,4 @@
-# 📘 API Documentation — Buyback Platform
+# 📘 API Documentation — QuickieCell
 
 **Base URL:** `http://localhost:5000/api`  
 **Auth Header:** `Authorization: Bearer <token>`  
@@ -29,7 +29,7 @@
 
 ## Overview
 
-This is a production-ready REST API for a **device buyback platform**. Users submit devices for sale, choose configuration options, get a dynamic price quote, and place orders. Admins manage the full lifecycle: confirm, receive, inspect, and pay out.
+This is a production-ready REST API for a **device QuickieCell**. Users submit devices for sale, choose configuration options, get a dynamic price quote, and place orders. Admins manage the full lifecycle: confirm, receive, inspect, and pay out.
 
 **Key Features:**
 
