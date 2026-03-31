@@ -39,6 +39,15 @@ const verifyToken = asyncHandler(async (req, res, next) => {
   }
 });
 
+const optionalToken = asyncHandler(async (req, res, next) => {
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    verifyToken(req, res, next);
+  } else {
+    req.user = null;
+    next();
+  }
+});
+
 const isAdmin = asyncHandler(async (req, res, next) => {
   if (!req.user || req.user.role !== 'admin') {
     throw new ApiError(403, 'Access denied. Admin privileges required.');
@@ -53,5 +62,9 @@ const isUser = asyncHandler(async (req, res, next) => {
   next();
 });
 
-module.exports = { verifyToken, isAdmin, isUser };
+
+
+
+
+module.exports = { verifyToken, isAdmin, isUser,optionalToken };
  

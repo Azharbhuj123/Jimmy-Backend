@@ -16,8 +16,8 @@ const calculateOrderPrice = asyncHandler(async (req, res) => {
 
 // POST /orders
 const createOrder = asyncHandler(async (req, res) => {
-  const { items, fulfillmentType, shippingDetails, pickupDetails, notes } = req.body;
-  const user = req.user;
+  const { items, fulfillmentType, shippingDetails, pickupDetails, notes, guest_email } = req.body;
+  const user = req?.user;
 
   if (!Array.isArray(items) || !items.length) {
     throw new ApiError(400, 'items must be a non-empty array');
@@ -37,7 +37,8 @@ const createOrder = asyncHandler(async (req, res) => {
   }));
 
   const order = await Order.create({
-    userId: user._id,
+    userId: user ? user._id : null,
+    guest_email: user ? "" : guest_email,
     items: orderItems,
     totalBasePrice: priceResult.totalBasePrice,
     totalCalculatedPrice: priceResult.totalCalculatedPrice,
@@ -46,9 +47,9 @@ const createOrder = asyncHandler(async (req, res) => {
     pickupDetails: fulfillmentType === 'pickup' ? pickupDetails : undefined,
     notes,
     userDetails: {
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
+      name: guest_email ? shippingDetails?.name : user.name,
+      email: guest_email ? guest_email : user.email,
+      phone: shippingDetails?.phone,
     },
     statusHistory: [{ status: 'pending', note: 'Order placed by user' }],
   });

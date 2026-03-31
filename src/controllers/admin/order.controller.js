@@ -8,6 +8,7 @@ const {
   sendStatusUpdateEmail,
   sendShippingLabelEmail,
   sendPaymentSentEmail,
+
 } = require('../../services/email.service');
 
 const VALID_STATUSES = ['pending', 'confirmed', 'label_sent', 'shipped', 'received', 'inspected', 'paid'];
@@ -79,7 +80,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   // Send email notification (non-blocking)
   if (previousStatus !== status) {
     const user = await User.findById(order.userId);
-    if (user) sendStatusUpdateEmail(order, user, note).catch(() => { });
+    if (user || order?.guest_email) sendStatusUpdateEmail(order, user, note).catch(() => { });
   }
 
   ApiResponse.success(res, { order }, `Order status updated to "${status}"`);
@@ -116,7 +117,7 @@ const updateShipping = asyncHandler(async (req, res) => {
 
   // Email user with label link (non-blocking)
   const user = await User.findById(order.userId);
-  if (user) {
+  if (user || order?.guest_email) {
     sendShippingLabelEmail(order, user).catch(() => { });
   }
 
@@ -157,7 +158,7 @@ const markPaymentSent = asyncHandler(async (req, res) => {
 
   // Notify user (non-blocking)
   const user = await User.findById(order.userId);
-  if (user) sendPaymentSentEmail(order, user).catch(() => { });
+  if (user || order?.guest_email) sendPaymentSentEmail(order, user).catch(() => { });
 
   ApiResponse.success(res, { order }, 'Payment marked as sent and user notified');
 });

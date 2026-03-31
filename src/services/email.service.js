@@ -69,18 +69,21 @@ const sendOrderCreatedEmail = async (order, user) => {
     `;
   }).join('');
 
+  const recipientEmail = user?.email || order?.guest_email;
+  const recipientName = user?.name || order?.userDetails?.name || order?.guest_name || 'Customer';
+
   await sendEmail({
-    to: user.email,
+    to: recipientEmail,
     subject: `Order Received — ${order.orderNumber}`,
     html: emailWrapper(`
       <h3 style="color:#1a1a2e;">Your Sell Order Has Been Received!</h3>
-      <p>Hi <strong>${user.name}</strong>, thank you for submitting your sell order.</p>
+      <p>Hi <strong>${recipientName}</strong>, thank you for submitting your sell order.</p>
       ${table([
-        infoRow('Order Number', order.orderNumber),
-        infoRow('Status', 'Pending'),
-        infoRow('Total Quoted Price', `$${order.totalCalculatedPrice.toFixed(2)}`),
-        infoRow('Fulfillment', order.fulfillmentType === 'pickup' ? 'Pickup' : 'Ship to Us'),
-      ])}
+      infoRow('Order Number', order.orderNumber),
+      infoRow('Status', 'Pending'),
+      infoRow('Total Quoted Price', `$${order.totalCalculatedPrice.toFixed(2)}`),
+      infoRow('Fulfillment', order.fulfillmentType === 'pickup' ? 'Pickup' : 'Ship to Us'),
+    ])}
       <h4 style="margin-top:20px;">Items Submitted</h4>
       ${itemsHtml}
       <p style="color:#555;margin-top:20px;font-size:14px;">
@@ -97,18 +100,20 @@ const sendOrderCreatedEmail = async (order, user) => {
 
 const sendShippingLabelEmail = async (order, user) => {
   const { shippingDetails } = order;
+  const recipientEmail = user?.email || order?.guest_email;
+  const recipientName = user?.name || order?.userDetails?.name || order?.guest_name || 'Customer';
 
   await sendEmail({
-    to: user.email,
+    to: recipientEmail,
     subject: `Shipping Label Ready — ${order.orderNumber}`,
     html: emailWrapper(`
       <h3 style="color:#1a1a2e;">Your Prepaid Shipping Label Is Ready!</h3>
-      <p>Hi <strong>${user.name}</strong>, your shipping label has been created. Please package your device(s) and ship them to us.</p>
+      <p>Hi <strong>${recipientName}</strong>, your shipping label has been created. Please package your device(s) and ship them to us.</p>
       ${table([
-        infoRow('Order Number', order.orderNumber),
-        infoRow('Courier', shippingDetails.courier || '—'),
-        infoRow('Tracking Number', shippingDetails.trackingNumber || '—'),
-      ])}
+      infoRow('Order Number', order.orderNumber),
+      infoRow('Courier', shippingDetails.courier || '—'),
+      infoRow('Tracking Number', shippingDetails.trackingNumber || '—'),
+    ])}
       <div style="margin:20px 0;text-align:center;">
         <a href="${shippingDetails.labelUrl}" style="display:inline-block;background:#1a1a2e;color:#fff;padding:14px 28px;text-decoration:none;border-radius:6px;font-size:15px;">
           📦 Download Shipping Label
@@ -146,20 +151,23 @@ const sendStatusUpdateEmail = async (order, user, note) => {
     message: `Your order status has been updated to: ${order.status}`,
   };
 
+  const recipientEmail = user?.email || order?.guest_email;
+  const recipientName = user?.name || order?.userDetails?.name || order?.guest_name || 'Customer';
+
   await sendEmail({
-    to: user.email,
+    to: recipientEmail,
     subject: `Order Update — ${order.orderNumber} is now "${cfg.label}"`,
     html: emailWrapper(`
       <div style="background:${cfg.color};padding:16px 20px;border-radius:6px;margin-bottom:20px;">
         <h3 style="color:#fff;margin:0;">Status: ${cfg.label}</h3>
       </div>
-      <p>Hi <strong>${user.name}</strong>,</p>
+      <p>Hi <strong>${recipientName}</strong>,</p>
       <p>${cfg.message}</p>
       ${table([
-        infoRow('Order Number', order.orderNumber),
-        infoRow('New Status', `<span style="color:${cfg.color};font-weight:bold;">${cfg.label}</span>`),
-        infoRow('Total Quoted Price', `$${order.totalCalculatedPrice.toFixed(2)}`),
-      ])}
+      infoRow('Order Number', order.orderNumber),
+      infoRow('New Status', `<span style="color:${cfg.color};font-weight:bold;">${cfg.label}</span>`),
+      infoRow('Total Quoted Price', `$${order.totalCalculatedPrice.toFixed(2)}`),
+    ])}
       ${note ? `<div style="background:#fffbe6;border-left:4px solid #f0c040;padding:12px 16px;border-radius:4px;margin-top:16px;"><strong>Note from Admin:</strong><br/><span style="color:#555;">${note}</span></div>` : ''}
       <p style="color:#888;font-size:13px;margin-top:20px;">If you have any questions, please contact our support team.</p>
     `),
@@ -179,21 +187,24 @@ const sendPaymentSentEmail = async (order, user) => {
     check: 'Check',
   };
 
+  const recipientEmail = user?.email || order?.guest_email;
+  const recipientName = user?.name || order?.userDetails?.name || order?.guest_name || 'Customer';
+
   await sendEmail({
-    to: user.email,
+    to: recipientEmail,
     subject: `Payment Sent — ${order.orderNumber}`,
     html: emailWrapper(`
       <div style="background:#27ae60;padding:16px 20px;border-radius:6px;margin-bottom:20px;">
         <h3 style="color:#fff;margin:0;">💸 Your Payment Has Been Sent!</h3>
       </div>
-      <p>Hi <strong>${user.name}</strong>, great news — your payment is on its way!</p>
+      <p>Hi <strong>${recipientName}</strong>, great news — your payment is on its way!</p>
       ${table([
-        infoRow('Order Number', order.orderNumber),
-        infoRow('Payment Method', methodLabels[order.paymentMethod] || order.paymentMethod),
-        infoRow('Transaction ID', order.transactionId || '—'),
-        infoRow('Amount', `$${order.totalCalculatedPrice.toFixed(2)}`),
-        infoRow('Paid At', order.paidAt ? new Date(order.paidAt).toLocaleString() : '—'),
-      ])}
+      infoRow('Order Number', order.orderNumber),
+      infoRow('Payment Method', methodLabels[order.paymentMethod] || order.paymentMethod),
+      infoRow('Transaction ID', order.transactionId || '—'),
+      infoRow('Amount', `$${order.totalCalculatedPrice.toFixed(2)}`),
+      infoRow('Paid At', order.paidAt ? new Date(order.paidAt).toLocaleString() : '—'),
+    ])}
       <p style="color:#555;font-size:14px;">
         Please allow a short time for the funds to appear in your account depending on the payment method.
       </p>
@@ -230,19 +241,21 @@ const sendPasswordResetEmail = async (user, resetCode) => {
 
 const sendPickupScheduledEmail = async (order, user) => {
   const { pickupDetails } = order;
+  const recipientEmail = user?.email || order?.guest_email;
+  const recipientName = user?.name || order?.userDetails?.name || order?.guest_name || 'Customer';
 
   await sendEmail({
-    to: user.email,
+    to: recipientEmail,
     subject: `Pickup Scheduled — ${order.orderNumber}`,
     html: emailWrapper(`
       <h3 style="color:#1a1a2e;">Your Pickup Has Been Scheduled!</h3>
-      <p>Hi <strong>${user.name}</strong>, a driver has been assigned for your pickup.</p>
+      <p>Hi <strong>${recipientName}</strong>, a driver has been assigned for your pickup.</p>
       ${table([
-        infoRow('Order Number', order.orderNumber),
-        infoRow('Pickup Date', pickupDetails.date ? new Date(pickupDetails.date).toLocaleDateString() : '—'),
-        infoRow('Time Slot', pickupDetails.timeSlot || '—'),
-        infoRow('Address', pickupDetails.address || '—'),
-      ])}
+      infoRow('Order Number', order.orderNumber),
+      infoRow('Pickup Date', pickupDetails.date ? new Date(pickupDetails.date).toLocaleDateString() : '—'),
+      infoRow('Time Slot', pickupDetails.timeSlot || '—'),
+      infoRow('Address', pickupDetails.address || '—'),
+    ])}
       ${pickupDetails.notes ? `<p style="color:#555;"><strong>Notes:</strong> ${pickupDetails.notes}</p>` : ''}
       <p style="color:#555;font-size:14px;">Please ensure someone is available at the address during the time slot.</p>
     `),
@@ -263,12 +276,12 @@ const sendContactNotificationEmail = async (contact) => {
       <h3 style="color:#1a1a2e;">📬 New Contact Form Submission</h3>
       <p>You have received a new message from a visitor.</p>
       ${table([
-        infoRow('Name', contact.name),
-        infoRow('Email', `<a href="mailto:${contact.email}" style="color:#1a1a2e;text-decoration:none;">${contact.email}</a>`),
-        infoRow('Phone', contact.phone || '—'),
-        infoRow('Company Name', contact.company_name || '—'),
-        infoRow('Submitted At', new Date(contact.createdAt).toLocaleString()),
-      ])}
+      infoRow('Name', contact.name),
+      infoRow('Email', `<a href="mailto:${contact.email}" style="color:#1a1a2e;text-decoration:none;">${contact.email}</a>`),
+      infoRow('Phone', contact.phone || '—'),
+      infoRow('Company Name', contact.company_name || '—'),
+      infoRow('Submitted At', new Date(contact.createdAt).toLocaleString()),
+    ])}
       <h4 style="margin-top:20px;color:#1a1a2e;">Message:</h4>
       <div style="background:#f9f9f9;padding:16px;border-left:4px solid #1a1a2e;border-radius:4px;margin:12px 0;white-space:pre-wrap;word-wrap:break-word;">${contact.message}</div>
       
