@@ -11,7 +11,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: ['http://localhost:5173/', 'https://jimmy-frontend.vercel.app/'],
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -71,7 +71,7 @@ app.use('*', (req, res) => {
 // ─── Global Error Handler ─────────────────────────────────────────────────────
 app.use(errorMiddleware);
 
-module.exports = app;
+// module.exports = app;
 
 
  
