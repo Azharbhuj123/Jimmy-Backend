@@ -9,57 +9,59 @@ const {
 const Order = require("../models/Order");
 const Category = require("../models/Category");
 
+
+
 const getProducts = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, search, brandId, activeTab } = req.query;
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
-  // 1. Build the Dynamic Query Object
+  /**
+   * 1. BUILD DYNAMIC QUERY
+   */
   const query = { isActive: true, steps: { $ne: [] } };
+  const andConditions = [];
 
-  // Search by Product Name (Case-insensitive partial match)
-  if (search) {
-    query["$or"] = [
-      { name: { $regex: search, $options: "i" } },
-      { description: { $regex: search, $options: "i" } },
-    ];
+  // Filter by Search Input
+  if (search && search.trim() !== "") {
+    andConditions.push({
+      $or: [
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ],
+    });
   }
 
-  // Filter by Brand ID
+  // Filter by Active Tab (Keyword matching)
+  if (activeTab && activeTab !== "undefined" && activeTab !== "Other Phones") {
+    // Clean "Sell " prefix if it exists to get core keywords like "iPad" or "Samsung"
+    const tabKeyword = activeTab.replace(/sell/i, "").trim();
+    
+    andConditions.push({
+      $or: [
+        { name: { $regex: tabKeyword, $options: "i" } },
+        { description: { $regex: tabKeyword, $options: "i" } },
+      ],
+    });
+  }
+
+  // Apply combined conditions if any exist
+  if (andConditions.length > 0) {
+    query.$and = andConditions;
+  }
+
+  // Filter by Brand ID (Direct match)
   if (brandId && brandId !== "undefined") {
     query.brandId = brandId;
-  };
-  // ... (inside getProducts after brandId logic)
-
-  // Filter by Active Tab (e.g., "iphone", "mac", "sell samsung")
-  if (activeTab && activeTab !== "undefined" && activeTab !== "Other Phones") {
-    // 1. Clean the string: remove "sell" and extra spaces to get the core keyword
-    const searchKeyword = activeTab.replace(/sell/i, "").trim();
-
-    // 2. We use $and to ensure the tab filter works ALONGSIDE the existing search (if any)
-    // If query.$or already exists from the 'search' param, we want both to be true.
-    const tabFilter = {
-      $or: [
-        { name: { $regex: searchKeyword, $options: "i" } },
-        { description: { $regex: searchKeyword, $options: "i" } }
-      ]
-    };
-
-    if (query.$or) {
-      // If user is searching AND has a tab selected, both must match
-      query.$and = [
-        { $or: query.$or }, // Existing search bar logic
-        tabFilter           // New tab logic
-      ];
-      delete query.$or; // Move it into the $and
-    } else {
-      query.$or = tabFilter.$or;
-    }
   }
-  // 2. Badge Logic Data (Fast Selling & Popular)
+
+  /**
+   * 2. BADGE LOGIC DATA
+   * (Optimized to run before main query)
+   */
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  // Get Top 10 Recent Product IDs from Orders
+  // Get Top 10 Fast Selling IDs
   const recentSales = await Order.aggregate([
     { $match: { createdAt: { $gte: sevenDaysAgo } } },
     { $unwind: "$items" },
@@ -76,17 +78,21 @@ const getProducts = asyncHandler(async (req, res) => {
     .select("_id");
   const popularIds = popularProducts.map((p) => p._id.toString());
 
-  // 3. Execute Main Query with Pagination
+  /**
+   * 3. EXECUTE MAIN QUERY
+   */
   const total = await Product.countDocuments(query);
   const products = await Product.find(query)
-    .populate("brandId", "name") // Optional: get brand details
+    .populate("brandId", "name")
     .populate("categoryId", "name")
-    .sort({ createdAt: -1 }) // Show newest first
+    .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(limit))
     .lean();
 
-  // 4. Map Badges to the results
+  /**
+   * 4. MAP BADGES
+   */
   const productsWithBadges = products.map((product) => {
     const badges = [];
     const idStr = product._id.toString();
@@ -97,7 +103,9 @@ const getProducts = asyncHandler(async (req, res) => {
     return { ...product, badges };
   });
 
-  // 5. Send Response
+  /**
+   * 5. SEND RESPONSE
+   */
   return ApiResponse.paginated(
     res,
     productsWithBadges,
