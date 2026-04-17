@@ -43,7 +43,7 @@ const createOrder = asyncHandler(async (req, res) => {
     totalBasePrice: priceResult.totalBasePrice,
     totalCalculatedPrice: priceResult.totalCalculatedPrice,
     fulfillmentType: fulfillmentType || 'shipping',
-    shippingDetails: fulfillmentType !== 'pickup' ? shippingDetails : undefined,
+    shippingDetails: fulfillmentType !== 'shipping' ? shippingDetails : undefined,
     pickupDetails: fulfillmentType === 'pickup' ? pickupDetails : undefined,
     notes,
     userDetails: {

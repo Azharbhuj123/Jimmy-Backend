@@ -46,11 +46,8 @@ const shippingDetailsSchema = new mongoose.Schema(
 
 const pickupDetailsSchema = new mongoose.Schema(
   {
-    address: { type: String, trim: true },
-    zipCode: { type: String, trim: true },
-    date: { type: Date },
-    timeSlot: { type: String, trim: true }, // e.g. "10:00 AM - 12:00 PM"
-    notes: { type: String, trim: true },
+    pickupTime: { type: String, trim: true },
+    phone: { type: String, trim: true },
     driverId: { type: mongoose.Schema.Types.ObjectId, ref: "Driver" },
   },
   { _id: false },
