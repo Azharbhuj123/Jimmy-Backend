@@ -74,12 +74,41 @@ const getBrands = asyncHandler(async (req, res) => {
   const { search, isActive, categoryId } = req.query;
 
   const filter = {};
-  if (search) filter.name = { $regex: search, $options: 'i' };
-  if (isActive !== undefined) filter.isActive = isActive === 'true';
-  if (categoryId) filter.categoryId = categoryId
+
+  // 1. Search Logic
+  if (search && search.trim() !== "") {
+    filter.name = { $regex: search, $options: 'i' };
+  }
+
+  // 2. Active Status Logic
+  if (isActive !== undefined && isActive !== "") {
+    filter.isActive = isActive === 'true';
+  }
+
+  /**
+   * 3. CategoryId Fix
+   * We check for:
+   * - null/undefined
+   * - Empty string ""
+   * - Literal empty quotes string '""' (sent by some frontend states)
+   * - The string "undefined" or "null"
+   */
+  if (
+    categoryId && 
+    categoryId !== "" && 
+    categoryId !== '""' && 
+    categoryId !== "undefined" && 
+    categoryId !== "null"
+  ) {
+    filter.categoryId = categoryId;
+  }
 
   const [brands, total] = await Promise.all([
-    Brand.find(filter).sort(sort).skip(skip).limit(limit).populate('categoryId', 'name'),
+    Brand.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .populate('categoryId', 'name'),
     Brand.countDocuments(filter),
   ]);
 
