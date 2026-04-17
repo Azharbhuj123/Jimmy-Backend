@@ -46,7 +46,7 @@ const shippingDetailsSchema = new mongoose.Schema(
 
 const pickupDetailsSchema = new mongoose.Schema(
   {
-    pickupTime: { type: String, trim: true },
+    time: { type: String, trim: true },
     phone: { type: String, trim: true },
     driverId: { type: mongoose.Schema.Types.ObjectId, ref: "Driver" },
   },
