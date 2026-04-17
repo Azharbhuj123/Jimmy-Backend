@@ -10,7 +10,7 @@ const Order = require("../models/Order");
 const Category = require("../models/Category");
 
 const getProducts = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, search, brandId } = req.query;
+  const { page = 1, limit = 10, search, brandId, activeTab } = req.query;
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
   // 1. Build the Dynamic Query Object
@@ -27,8 +27,34 @@ const getProducts = asyncHandler(async (req, res) => {
   // Filter by Brand ID
   if (brandId && brandId !== "undefined") {
     query.brandId = brandId;
-  }
+  };
+  // ... (inside getProducts after brandId logic)
 
+  // Filter by Active Tab (e.g., "iphone", "mac", "sell samsung")
+  if (activeTab && activeTab !== "undefined" && activeTab !== "Other Phones") {
+    // 1. Clean the string: remove "sell" and extra spaces to get the core keyword
+    const searchKeyword = activeTab.replace(/sell/i, "").trim();
+
+    // 2. We use $and to ensure the tab filter works ALONGSIDE the existing search (if any)
+    // If query.$or already exists from the 'search' param, we want both to be true.
+    const tabFilter = {
+      $or: [
+        { name: { $regex: searchKeyword, $options: "i" } },
+        { description: { $regex: searchKeyword, $options: "i" } }
+      ]
+    };
+
+    if (query.$or) {
+      // If user is searching AND has a tab selected, both must match
+      query.$and = [
+        { $or: query.$or }, // Existing search bar logic
+        tabFilter           // New tab logic
+      ];
+      delete query.$or; // Move it into the $and
+    } else {
+      query.$or = tabFilter.$or;
+    }
+  }
   // 2. Badge Logic Data (Fast Selling & Popular)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
