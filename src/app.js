@@ -71,7 +71,7 @@ app.use('*', (req, res) => {
 // ─── Global Error Handler ─────────────────────────────────────────────────────
 app.use(errorMiddleware);
 
-// module.exports = app;
+module.exports = app;
 
 
  
