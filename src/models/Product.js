@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 // Step option schema — each option within a step
 const stepOptionSchema = new mongoose.Schema(
@@ -9,12 +9,12 @@ const stepOptionSchema = new mongoose.Schema(
     priceModifier: { type: Number, required: true, default: 0 }, // +/- amount OR multiplier
     modifierType: {
       type: String,
-      enum: ['fixed', 'percentage'],
-      default: 'fixed',
+      enum: ["fixed", "percentage"],
+      default: "fixed",
     },
     description: { type: String, trim: true },
   },
-  { _id: true }
+  { _id: true },
 );
 
 // Step schema — a configuration step like "Storage", "Color", "Condition"
@@ -26,14 +26,14 @@ const stepSchema = new mongoose.Schema(
     order: { type: Number, default: 0 },
     options: [stepOptionSchema],
   },
-  { _id: true }
+  { _id: true },
 );
 
 const productSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Product name is required'],
+      required: [true, "Product name is required"],
       trim: true,
     },
     slug: {
@@ -51,27 +51,37 @@ const productSchema = new mongoose.Schema(
     // },
     brandId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Brand',
-      required: [true, 'Brand is required'],
+      ref: "Brand",
+      required: [true, "Brand is required"],
     },
     pricingType: {
       type: String,
-      enum: ['dynamic', 'matrix'],
-      default: 'dynamic',
+      enum: ["dynamic", "matrix"],
+      default: "dynamic",
     },
     basePrice: {
       type: Number,
-      required: [function() { return this.pricingType !== 'matrix'; }, 'Base price is required'],
-      min: [0, 'Base price cannot be negative'],
-      default: 0
+      required: [
+        function () {
+          return this.pricingType !== "matrix";
+        },
+        "Base price is required",
+      ],
+      min: [0, "Base price cannot be negative"],
+      default: 0,
     },
     pricingMatrix: [
       {
         variant: { type: String, required: true, trim: true, lowercase: true },
         type: { type: String, required: true, trim: true, lowercase: true },
-        condition: { type: String, required: true, trim: true, lowercase: true },
+        condition: {
+          type: String,
+          required: true,
+          trim: true,
+          lowercase: true,
+        },
         price: { type: Number, required: true, min: 0 },
-      }
+      },
     ],
     steps: [stepSchema], // dynamic pricing steps
     images: [{ type: String }],
@@ -88,16 +98,26 @@ const productSchema = new mongoose.Schema(
       default: 0,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-productSchema.index({ 'pricingMatrix.variant': 1, 'pricingMatrix.type': 1, 'pricingMatrix.condition': 1 });
+productSchema.index({
+  "pricingMatrix.variant": 1,
+  "pricingMatrix.type": 1,
+  "pricingMatrix.condition": 1,
+});
 
-productSchema.pre('save', function (next) {
-  if (this.isModified('name')) {
-    this.slug = this.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '') + '-' + Date.now();
+productSchema.pre("save", function (next) {
+  if (this.isModified("name")) {
+    this.slug =
+      this.name
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^\w-]/g, "") +
+      "-" +
+      Date.now();
   }
   next();
 });
 
-module.exports = mongoose.model('Product', productSchema);
+module.exports = mongoose.model("Product", productSchema);

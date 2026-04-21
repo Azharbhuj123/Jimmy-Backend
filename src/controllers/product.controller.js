@@ -9,8 +9,6 @@ const {
 const Order = require("../models/Order");
 const Category = require("../models/Category");
 
-
-
 const getProducts = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, search, brandId, activeTab } = req.query;
   const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -18,7 +16,7 @@ const getProducts = asyncHandler(async (req, res) => {
   /**
    * 1. BUILD DYNAMIC QUERY
    */
-  const query = { isActive: true, steps: { $ne: [] } };
+  const query = { isActive: true };
   const andConditions = [];
 
   // Filter by Search Input
@@ -35,7 +33,7 @@ const getProducts = asyncHandler(async (req, res) => {
   if (activeTab && activeTab !== "undefined" && activeTab !== "Other Phones") {
     // Clean "Sell " prefix if it exists to get core keywords like "iPad" or "Samsung"
     const tabKeyword = activeTab.replace(/sell/i, "").trim();
-    
+
     andConditions.push({
       $or: [
         { name: { $regex: tabKeyword, $options: "i" } },
