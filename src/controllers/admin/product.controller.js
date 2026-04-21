@@ -7,7 +7,7 @@ const { getProductAnalytics } = require('../../services/pricing.service');
 
 const createProduct = asyncHandler(async (req, res) => {
   const product = await Product.create(req.body);
-  await product.populate(['categoryId', 'brandId']);
+  await product.populate(['brandId']);
   ApiResponse.success(res, { product }, 'Product created', 201);
 });
 
@@ -28,7 +28,6 @@ const getProducts = asyncHandler(async (req, res) => {
 
   const [products, total] = await Promise.all([
     Product.find(filter)
-      .populate('categoryId', 'name slug')
       .populate('brandId', 'name slug')
       .sort(sort)
       .skip(skip)
@@ -41,7 +40,6 @@ const getProducts = asyncHandler(async (req, res) => {
 
 const getProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id)
-    .populate('categoryId', 'name slug')
     .populate('brandId', 'name slug');
   if (!product) throw new ApiError(404, 'Product not found');
   ApiResponse.success(res, { product });
@@ -51,7 +49,7 @@ const updateProduct = asyncHandler(async (req, res) => {
   const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,
-  }).populate(['categoryId', 'brandId']);
+  });
   if (!product) throw new ApiError(404, 'Product not found');
   ApiResponse.success(res, { product }, 'Product updated');
 });

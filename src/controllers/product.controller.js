@@ -9,8 +9,6 @@ const {
 const Order = require("../models/Order");
 const Category = require("../models/Category");
 
-
-
 const getProducts = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, search, brandId, activeTab } = req.query;
   const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -35,7 +33,7 @@ const getProducts = asyncHandler(async (req, res) => {
   if (activeTab && activeTab !== "undefined" && activeTab !== "Other Phones") {
     // Clean "Sell " prefix if it exists to get core keywords like "iPad" or "Samsung"
     const tabKeyword = activeTab.replace(/sell/i, "").trim();
-    
+
     andConditions.push({
       $or: [
         { name: { $regex: tabKeyword, $options: "i" } },
@@ -84,7 +82,6 @@ const getProducts = asyncHandler(async (req, res) => {
   const total = await Product.countDocuments(query);
   const products = await Product.find(query)
     .populate("brandId", "name")
-    .populate("categoryId", "name")
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(limit))
@@ -344,9 +341,10 @@ const getMostPopularProductsName = asyncHandler(async (req, res) => {
 });
 
 const getProduct = asyncHandler(async (req, res) => {
-  const product = await Product.findOne({ _id: req.params.id, isActive: true })
-    .populate("categoryId", "name slug")
-    .populate("brandId", "name slug logo");
+  const product = await Product.findOne({
+    _id: req.params.id,
+    isActive: true,
+  }).populate("brandId", "name slug logo");
   if (!product) throw new ApiError(404, "Product not found");
   ApiResponse.success(res, product);
 });
@@ -355,9 +353,7 @@ const getProductBySlug = asyncHandler(async (req, res) => {
   const product = await Product.findOne({
     slug: req.params.slug,
     isActive: true,
-  })
-    .populate("categoryId", "name slug")
-    .populate("brandId", "name slug logo");
+  }).populate("brandId", "name slug logo");
   if (!product) throw new ApiError(404, "Product not found");
   ApiResponse.success(res, { product });
 });

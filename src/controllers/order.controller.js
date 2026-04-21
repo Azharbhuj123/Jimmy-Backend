@@ -9,8 +9,8 @@ const { getPaginationOptions, buildPaginationMeta } = require('../utils/paginati
 
 // POST /orders/calculate-price
 const calculateOrderPrice = asyncHandler(async (req, res) => {
-  const { productId, selectedOptions } = req.body;
-  const result = await calculatePrice(productId, selectedOptions);
+  const { productId, selectedOptions, isLocalPickup } = req.body;
+  const result = await calculatePrice(productId, selectedOptions, isLocalPickup);
   ApiResponse.success(res, result, 'Price calculated');
 });
 
@@ -24,7 +24,7 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 
   // Calculate prices for all items
-  const priceResult = await calculateMultiPrice(items);
+  const priceResult = await calculateMultiPrice(items, fulfillmentType);
 
   // Build order items
   const orderItems = priceResult.items.map((r) => ({
@@ -43,7 +43,7 @@ const createOrder = asyncHandler(async (req, res) => {
     totalBasePrice: priceResult.totalBasePrice,
     totalCalculatedPrice: priceResult.totalCalculatedPrice,
     fulfillmentType: fulfillmentType || 'shipping',
-    shippingDetails: fulfillmentType !== 'shipping' ? shippingDetails : undefined,
+    shippingDetails: fulfillmentType === 'shipping' ? shippingDetails : undefined,
     pickupDetails: fulfillmentType === 'pickup' ? pickupDetails : undefined,
     notes,
     userDetails: {

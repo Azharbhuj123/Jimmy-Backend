@@ -107,8 +107,7 @@ const getBrands = asyncHandler(async (req, res) => {
     Brand.find(filter)
       .sort(sort)
       .skip(skip)
-      .limit(limit)
-      .populate('categoryId', 'name'),
+      .limit(limit),
     Brand.countDocuments(filter),
   ]);
 

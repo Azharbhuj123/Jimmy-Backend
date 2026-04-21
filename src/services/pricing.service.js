@@ -14,48 +14,68 @@ const ApiError = require('../utils/ApiError');
  * @param {Array}  selectedOptionsArr  [{ stepKey, optionValue }]
  * @returns {{ basePrice, calculatedPrice, priceBreakdown, selectedOptions, productName }}
  */
-const calculatePrice = async (productId, selectedOptionsArr = []) => {
+const calculatePrice = async (productId, selectedOptionsArr = [], isLocalPickup = false) => {
   const product = await Product.findById(productId);
   if (!product) throw new ApiError(404, 'Product not found');
   if (!product.isActive) throw new ApiError(400, 'Product is not available');
 
-  let runningPrice = product.basePrice;
-  const priceBreakdown = [
-    { label: 'Base Price', amount: product.basePrice, runningTotal: runningPrice },
-  ];
+  let runningPrice = 0;
+  const priceBreakdown = [];
   const selectedOptions = [];
   const errors = [];
 
   for (const step of product.steps) {
-    const userSelection = selectedOptionsArr.find((s) => s.stepKey === step.key);
+    // Filter all selections for this step
+    const userSelections = selectedOptionsArr.filter((s) => s.stepKey === step.key);
 
-    if (!userSelection) {
+    if (userSelections.length === 0) {
       if (step.isRequired) {
         errors.push(`Step "${step.title}" is required.`);
       }
       continue;
     }
 
-    const chosenOption = step.options.find((o) => o.value === userSelection.optionValue);
-    if (!chosenOption) {
-      errors.push(`Invalid option "${userSelection.optionValue}" for step "${step.title}".`);
+    // Get all chosen options for this step
+    const chosenOptions = [];
+    for (const selection of userSelections) {
+      // We check both value and label just in case
+      const opt = step.options.find((o) => o.value === selection.optionValue || o.label === selection.optionValue);
+      if (opt) {
+        chosenOptions.push(opt);
+      }
+    }
+
+    if (chosenOptions.length === 0) {
+      errors.push(`Invalid options for step "${step.title}".`);
       continue;
     }
 
+    // Lowest Price Logic: Pick the option with the minimum modifier
+    let pickedOption = chosenOptions[0];
+    let minModifier = isLocalPickup ? pickedOption.pickupPriceModifier : pickedOption.shipPriceModifier;
+
+    for (let i = 1; i < chosenOptions.length; i++) {
+        const currentModifier = isLocalPickup ? chosenOptions[i].pickupPriceModifier : chosenOptions[i].shipPriceModifier;
+        if (currentModifier < minModifier) {
+            minModifier = currentModifier;
+            pickedOption = chosenOptions[i];
+        }
+    }
+
     let adjustment = 0;
-    if (chosenOption.modifierType === 'percentage') {
-      adjustment = (runningPrice * chosenOption.priceModifier) / 100;
+    if (pickedOption.modifierType === 'percentage') {
+      adjustment = (runningPrice * minModifier) / 100;
     } else {
-      adjustment = chosenOption.priceModifier;
+      adjustment = minModifier;
     }
 
     runningPrice += adjustment;
     runningPrice = Math.max(0, runningPrice); // price can never go negative
 
     priceBreakdown.push({
-      label: `${step.title}: ${chosenOption.label}`,
-      modifierType: chosenOption.modifierType,
-      modifier: chosenOption.priceModifier,
+      label: `${step.title}: ${pickedOption.label}${chosenOptions.length > 1 ? ' (Lowest among selected)' : ''}`,
+      modifierType: pickedOption.modifierType,
+      modifier: minModifier,
       adjustment: parseFloat(adjustment.toFixed(2)),
       runningTotal: parseFloat(runningPrice.toFixed(2)),
     });
@@ -63,10 +83,10 @@ const calculatePrice = async (productId, selectedOptionsArr = []) => {
     selectedOptions.push({
       stepKey: step.key,
       stepTitle: step.title,
-      optionLabel: chosenOption.label,
-      optionValue: chosenOption.value,
-      priceModifier: chosenOption.priceModifier,
-      modifierType: chosenOption.modifierType,
+      optionLabels: chosenOptions.map(o => o.label),
+      pickedOptionLabel: pickedOption.label,
+      priceModifier: minModifier,
+      modifierType: pickedOption.modifierType,
     });
   }
 
@@ -75,7 +95,7 @@ const calculatePrice = async (productId, selectedOptionsArr = []) => {
   }
 
   return {
-    basePrice: product.basePrice,
+    basePrice: 0,
     calculatedPrice: parseFloat(runningPrice.toFixed(2)),
     priceBreakdown,
     selectedOptions,
@@ -91,11 +111,13 @@ const calculatePrice = async (productId, selectedOptionsArr = []) => {
  * @param {Array} items  [{ productId, selectedOptions }]
  * @returns {{ items, totalBasePrice, totalCalculatedPrice }}
  */
-const calculateMultiPrice = async (items = []) => {
+const calculateMultiPrice = async (items = [], fulfillmentType = 'shipping') => {
   if (!items.length) throw new ApiError(400, 'At least one item is required');
 
+  const isLocalPickup = fulfillmentType === 'pickup';
+
   const results = await Promise.all(
-    items.map(({ productId, selectedOptions }) => calculatePrice(productId, selectedOptions))
+    items.map(({ productId, selectedOptions }) => calculatePrice(productId, selectedOptions, isLocalPickup))
   );
 
   const totalBasePrice = results.reduce((sum, r) => sum + r.basePrice, 0);

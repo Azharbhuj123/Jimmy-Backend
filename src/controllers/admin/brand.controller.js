@@ -18,7 +18,7 @@ const getBrands = asyncHandler(async (req, res) => {
   if (isActive !== undefined) filter.isActive = isActive === 'true';
 
   const [brands, total] = await Promise.all([
-    Brand.find(filter).sort(sort).skip(skip).limit(limit).populate('categoryId','name'),
+    Brand.find(filter).sort(sort).skip(skip).limit(limit),
     Brand.countDocuments(filter),
   ]);
 
