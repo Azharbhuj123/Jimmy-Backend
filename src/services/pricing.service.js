@@ -19,12 +19,19 @@ const calculatePrice = async (productId, selectedOptionsArr = []) => {
   if (!product) throw new ApiError(404, 'Product not found');
   if (!product.isActive) throw new ApiError(400, 'Product is not available');
 
-  let runningPrice = product.basePrice;
-  const priceBreakdown = [
-    { label: 'Base Price', amount: product.basePrice, runningTotal: runningPrice },
-  ];
+  let runningPrice = 0;
+  const priceBreakdown = [];
   const selectedOptions = [];
   const errors = [];
+
+  const isMatrix = product.pricingType === 'matrix';
+
+  if (!isMatrix) {
+    runningPrice = product.basePrice || 0;
+    priceBreakdown.push({ label: 'Base Price', amount: runningPrice, runningTotal: runningPrice });
+  }
+
+  const userSelectionsMap = {};
 
   for (const step of product.steps) {
     const userSelection = selectedOptionsArr.find((s) => s.stepKey === step.key);
@@ -36,37 +43,41 @@ const calculatePrice = async (productId, selectedOptionsArr = []) => {
       continue;
     }
 
+    userSelectionsMap[step.key] = userSelection.optionValue;
+
     const chosenOption = step.options.find((o) => o.value === userSelection.optionValue);
     if (!chosenOption) {
       errors.push(`Invalid option "${userSelection.optionValue}" for step "${step.title}".`);
       continue;
     }
 
-    let adjustment = 0;
-    if (chosenOption.modifierType === 'percentage') {
-      adjustment = (runningPrice * chosenOption.priceModifier) / 100;
-    } else {
-      adjustment = chosenOption.priceModifier;
+    if (!isMatrix) {
+      let adjustment = 0;
+      if (chosenOption.modifierType === 'percentage') {
+        adjustment = (runningPrice * chosenOption.priceModifier) / 100;
+      } else {
+        adjustment = chosenOption.priceModifier;
+      }
+
+      runningPrice += adjustment;
+      runningPrice = Math.max(0, runningPrice); // price can never go negative
+
+      priceBreakdown.push({
+        label: `${step.title}: ${chosenOption.label}`,
+        modifierType: chosenOption.modifierType,
+        modifier: chosenOption.priceModifier,
+        adjustment: parseFloat(adjustment.toFixed(2)),
+        runningTotal: parseFloat(runningPrice.toFixed(2)),
+      });
     }
-
-    runningPrice += adjustment;
-    runningPrice = Math.max(0, runningPrice); // price can never go negative
-
-    priceBreakdown.push({
-      label: `${step.title}: ${chosenOption.label}`,
-      modifierType: chosenOption.modifierType,
-      modifier: chosenOption.priceModifier,
-      adjustment: parseFloat(adjustment.toFixed(2)),
-      runningTotal: parseFloat(runningPrice.toFixed(2)),
-    });
 
     selectedOptions.push({
       stepKey: step.key,
       stepTitle: step.title,
       optionLabel: chosenOption.label,
       optionValue: chosenOption.value,
-      priceModifier: chosenOption.priceModifier,
-      modifierType: chosenOption.modifierType,
+      priceModifier: isMatrix ? 0 : chosenOption.priceModifier,
+      modifierType: isMatrix ? 'fixed' : chosenOption.modifierType,
     });
   }
 
@@ -74,8 +85,31 @@ const calculatePrice = async (productId, selectedOptionsArr = []) => {
     throw new ApiError(400, 'Invalid configuration', errors.map((e) => ({ message: e })));
   }
 
+  if (isMatrix) {
+    const variant = userSelectionsMap.variant?.toLowerCase();
+    const type = userSelectionsMap.type?.toLowerCase();
+    const condition = userSelectionsMap.condition?.toLowerCase();
+
+    if (!variant || !type || !condition) {
+      throw new ApiError(400, 'Missing required fields for matrix pricing combination (variant, type, condition). Please ensure steps use keys "variant", "type", and "condition".');
+    }
+
+    const match = product.pricingMatrix.find(p =>
+      p.variant === variant &&
+      p.type === type &&
+      p.condition === condition
+    );
+
+    if (!match) {
+      throw new ApiError(404, `No pricing found for selected combination: ${variant}, ${type}, ${condition}`);
+    }
+
+    runningPrice = match.price;
+    priceBreakdown.push({ label: 'Matrix Price', amount: match.price, runningTotal: runningPrice });
+  }
+
   return {
-    basePrice: product.basePrice,
+    basePrice: isMatrix ? runningPrice : (product.basePrice || 0),
     calculatedPrice: parseFloat(runningPrice.toFixed(2)),
     priceBreakdown,
     selectedOptions,
