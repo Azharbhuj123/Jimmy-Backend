@@ -45,10 +45,10 @@ const productSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    categoryId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Category',
-    },
+    // categoryId: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: 'Category',
+    // },
     brandId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Brand',
