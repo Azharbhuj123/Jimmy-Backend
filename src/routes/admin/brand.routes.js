@@ -5,7 +5,7 @@ const validate = require('../../middlewares/validate.middleware');
 
 const rules = [
   body('name').trim().notEmpty().withMessage('Brand name is required'),
-  body('categoryId').trim().notEmpty().withMessage('Category is required'),
+  // body('categoryId').trim().notEmpty().withMessage('Category is required'),
 ];
 
 router.post('/', rules, validate, ctrl.createBrand);

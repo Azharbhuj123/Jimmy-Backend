@@ -32,4 +32,6 @@ router.put(
   ctrl.markPaymentSent
 );
 
+router.put('/:id/internal', ctrl.updateInternalDetails);
+
 module.exports = router;

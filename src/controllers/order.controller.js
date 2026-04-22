@@ -1,26 +1,45 @@
-const Order = require('../models/Order');
-const Product = require('../models/Product');
-const ApiResponse = require('../utils/ApiResponse');
-const ApiError = require('../utils/ApiError');
-const asyncHandler = require('../utils/asyncHandler');
-const { calculateMultiPrice, calculatePrice } = require('../services/pricing.service');
-const { sendOrderCreatedEmail } = require('../services/email.service');
-const { getPaginationOptions, buildPaginationMeta } = require('../utils/pagination');
+const Order = require("../models/Order");
+const Product = require("../models/Product");
+const ApiResponse = require("../utils/ApiResponse");
+const ApiError = require("../utils/ApiError");
+const asyncHandler = require("../utils/asyncHandler");
+const {
+  calculateMultiPrice,
+  calculatePrice,
+} = require("../services/pricing.service");
+const { sendOrderCreatedEmail } = require("../services/email.service");
+const {
+  getPaginationOptions,
+  buildPaginationMeta,
+} = require("../utils/pagination");
 
 // POST /orders/calculate-price
 const calculateOrderPrice = asyncHandler(async (req, res) => {
   const { productId, selectedOptions, isLocalPickup } = req.body;
-  const result = await calculatePrice(productId, selectedOptions, isLocalPickup);
-  ApiResponse.success(res, result, 'Price calculated');
+  const result = await calculatePrice(
+    productId,
+    selectedOptions,
+    isLocalPickup,
+  );
+  ApiResponse.success(res, result, "Price calculated");
 });
 
 // POST /orders
 const createOrder = asyncHandler(async (req, res) => {
-  const { items, fulfillmentType, shippingDetails, pickupDetails, notes, guest_email } = req.body;
+  const {
+    items,
+    fulfillmentType,
+    shippingDetails,
+    pickupDetails,
+    notes,
+    guest_email,
+    preferredContact,
+    paymentMethod,
+  } = req.body;
   const user = req?.user;
 
   if (!Array.isArray(items) || !items.length) {
-    throw new ApiError(400, 'items must be a non-empty array');
+    throw new ApiError(400, "items must be a non-empty array");
   }
 
   // Calculate prices for all items
@@ -42,26 +61,39 @@ const createOrder = asyncHandler(async (req, res) => {
     items: orderItems,
     totalBasePrice: priceResult.totalBasePrice,
     totalCalculatedPrice: priceResult.totalCalculatedPrice,
-    fulfillmentType: fulfillmentType || 'shipping',
-    shippingDetails: fulfillmentType === 'shipping' ? shippingDetails : undefined,
-    pickupDetails: fulfillmentType === 'pickup' ? pickupDetails : undefined,
+    fulfillmentType: fulfillmentType || "shipping",
+    shippingDetails:
+      fulfillmentType === "shipping" ? shippingDetails : undefined,
+    pickupDetails: fulfillmentType === "pickup" ? pickupDetails : undefined,
     notes,
     userDetails: {
       name: guest_email ? shippingDetails?.name : user.name,
       email: guest_email ? guest_email : user.email,
-      phone: shippingDetails?.phone,
+      phone:
+        fulfillmentType === "shipping"
+          ? shippingDetails?.phone
+          : pickupDetails?.phone,
+      preferredContact: preferredContact || "email",
+      city: shippingDetails?.city || "",
+      state: shippingDetails?.state || "",
     },
-    statusHistory: [{ status: 'pending', note: 'Order placed by user' }],
+    paymentMethod,
+    statusHistory: [{ status: "pending", note: "Order placed by user" }],
   });
 
   // Increment totalOrders on each product (non-blocking)
-  const productIds = [...new Set(orderItems.map((i) => i.productId.toString()))];
-  Product.updateMany({ _id: { $in: productIds } }, { $inc: { totalOrders: 1 } }).catch(() => { });
+  const productIds = [
+    ...new Set(orderItems.map((i) => i.productId.toString())),
+  ];
+  Product.updateMany(
+    { _id: { $in: productIds } },
+    { $inc: { totalOrders: 1 } },
+  ).catch(() => {});
 
   // Send confirmation email (non-blocking)
-  sendOrderCreatedEmail(order, user).catch(() => { });
+  sendOrderCreatedEmail(order, user).catch(() => {});
 
-  ApiResponse.success(res, { order }, 'Order placed successfully', 201);
+  ApiResponse.success(res, { order }, "Order placed successfully", 201);
 });
 
 // GET /orders
@@ -74,7 +106,7 @@ const getMyOrders = asyncHandler(async (req, res) => {
 
   const [orders, total] = await Promise.all([
     Order.find(filter)
-      .populate('items.productId', 'name basePrice images')
+      .populate("items.productId", "name basePrice images")
       .sort(sort)
       .skip(skip)
       .limit(limit),
@@ -86,11 +118,11 @@ const getMyOrders = asyncHandler(async (req, res) => {
 
 // GET /orders/:id
 const getMyOrder = asyncHandler(async (req, res) => {
-  const order = await Order.findOne({ _id: req.params.id, userId: req.user._id }).populate(
-    'items.productId',
-    'name basePrice images steps'
-  );
-  if (!order) throw new ApiError(404, 'Order not found');
+  const order = await Order.findOne({
+    _id: req.params.id,
+    userId: req.user._id,
+  }).populate("items.productId", "name basePrice images steps");
+  if (!order) throw new ApiError(404, "Order not found");
   ApiResponse.success(res, { order });
 });
 

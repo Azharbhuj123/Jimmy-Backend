@@ -26,4 +26,8 @@ router.delete("/:id/steps/:stepId", ctrl.deleteStep);
 // Analytics
 router.get("/:id/analytics", ctrl.getAnalytics);
 
+// Advanced Actions
+router.post("/:id/duplicate", ctrl.duplicateProduct);
+router.patch("/bulk-update", ctrl.bulkUpdateProducts);
+
 module.exports = router;

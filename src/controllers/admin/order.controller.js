@@ -20,7 +20,9 @@ const VALID_STATUSES = [
   "shipped",
   "received",
   "inspected",
+  "ready_to_pay",
   "paid",
+  "cancelled",
 ];
 
 // GET /admin/orders
@@ -207,10 +209,24 @@ const markPaymentSent = asyncHandler(async (req, res) => {
   );
 });
 
+// PUT /admin/orders/:id/internal
+const updateInternalDetails = asyncHandler(async (req, res) => {
+  const { internalNotes, flags } = req.body;
+  const order = await Order.findById(req.params.id);
+  if (!order) throw new ApiError(404, "Order not found");
+
+  if (internalNotes !== undefined) order.internalNotes = internalNotes;
+  if (flags !== undefined) order.flags = flags;
+
+  await order.save();
+  ApiResponse.success(res, { order }, "Internal details updated");
+});
+
 module.exports = {
   getOrders,
   getOrder,
   updateOrderStatus,
   updateShipping,
   markPaymentSent,
+  updateInternalDetails,
 };

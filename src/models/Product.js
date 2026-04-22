@@ -37,6 +37,11 @@ const productSchema = new mongoose.Schema(
       required: [true, "Product name is required"],
       trim: true,
     },
+    carrier: {
+      type: String,
+      required: [true, "Product carrier is required"],
+      trim: true,
+    },
     slug: {
       type: String,
       unique: true,
@@ -59,6 +64,11 @@ const productSchema = new mongoose.Schema(
       type: Number,
       required: [true, "Base price is required"],
       min: [0, "Base price cannot be negative"],
+    },
+    avgResaleValue: {
+      type: Number,
+      default: 0,
+      min: [0, "Resale value cannot be negative"],
     },
     steps: [stepSchema], // dynamic pricing steps
     images: [{ type: String }],

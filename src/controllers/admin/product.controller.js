@@ -96,6 +96,41 @@ const getAnalytics = asyncHandler(async (req, res) => {
   ApiResponse.success(res, data, 'Product analytics fetched');
 });
 
+const duplicateProduct = asyncHandler(async (req, res) => {
+  const original = await Product.findById(req.params.id);
+  if (!original) throw new ApiError(404, 'Product not found');
+
+  const copy = original.toObject();
+  delete copy._id;
+  delete copy.createdAt;
+  delete copy.updatedAt;
+  delete copy.slug;
+  copy.name = `${original.name} (Copy)`;
+  copy.isActive = false;
+
+  const product = await Product.create(copy);
+  ApiResponse.success(res, { product }, 'Product duplicated', 201);
+});
+
+const bulkUpdateProducts = asyncHandler(async (req, res) => {
+  const { ids, update } = req.body;
+  if (!Array.isArray(ids) || !ids.length) {
+    throw new ApiError(400, 'Invalid product IDs');
+  }
+
+  const mongoUpdate = {};
+  if (update.isActive !== undefined) {
+    mongoUpdate.$set = { ...mongoUpdate.$set, isActive: update.isActive };
+  }
+  if (update.priceAdjPercent !== undefined) {
+    const factor = 1 + (parseFloat(update.priceAdjPercent) / 100);
+    mongoUpdate.$mul = { ...mongoUpdate.$mul, basePrice: factor };
+  }
+
+  await Product.updateMany({ _id: { $in: ids } }, mongoUpdate);
+  ApiResponse.success(res, {}, 'Bulk update completed');
+});
+
 module.exports = {
   createProduct,
   getProducts,
@@ -106,4 +141,6 @@ module.exports = {
   updateStep,
   deleteStep,
   getAnalytics,
+  duplicateProduct,
+  bulkUpdateProducts,
 };

@@ -99,7 +99,9 @@ const orderSchema = new mongoose.Schema(
         "shipped",
         "received",
         "inspected",
+        "ready_to_pay",
         "paid",
+        "cancelled",
       ],
       default: "pending",
     },
@@ -117,7 +119,7 @@ const orderSchema = new mongoose.Schema(
     // ── Payment (admin sends manually) ───────────────────────────────────────
     paymentMethod: {
       type: String,
-      enum: ["zelle", "paypal", "apple_pay", "venmo", "check"],
+      enum: ["zelle", "paypal", "check"],
     },
     paymentStatus: {
       type: String,
@@ -133,9 +135,18 @@ const orderSchema = new mongoose.Schema(
       email: String,
       phone: String,
       address: String,
+      preferredContact: {
+        type: String,
+        enum: ["email", "phone", "text"],
+        default: "email",
+      },
+      city: String,
+      state: String,
     },
 
     notes: { type: String, trim: true },
+    internalNotes: { type: String, trim: true },
+    flags: [{ type: String, trim: true }],
   },
   { timestamps: true },
 );
