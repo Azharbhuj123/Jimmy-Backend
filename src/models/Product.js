@@ -60,6 +60,12 @@ const productSchema = new mongoose.Schema(
       ref: "Brand",
       required: [true, "Brand is required"],
     },
+    sku: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
     basePrice: {
       type: Number,
       required: [true, "Base price is required"],
@@ -83,6 +89,11 @@ const productSchema = new mongoose.Schema(
     totalPayout: {
       type: Number,
       default: 0,
+    },
+    stock: {
+      type: Number,
+      default: 0,
+      min: [0, "Stock cannot be negative"],
     },
   },
   { timestamps: true },

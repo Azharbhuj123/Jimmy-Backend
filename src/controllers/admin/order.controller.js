@@ -1,4 +1,5 @@
 const Order = require("../../models/Order");
+const Product = require("../../models/Product");
 const User = require("../../models/User");
 const ApiResponse = require("../../utils/ApiResponse");
 const ApiError = require("../../utils/ApiError");
@@ -106,8 +107,25 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
   await order.save();
 
-  // Send email notification (non-blocking)
+  // Handle Stock Adjustment (Automatic)
   if (previousStatus !== status) {
+    const isInWarehouse = (s) => ["received", "inspected", "ready_to_pay", "paid"].includes(s);
+    const wasIn = isInWarehouse(previousStatus);
+    const isNowIn = isInWarehouse(status);
+
+    if (!wasIn && isNowIn) {
+      // Order just arrived/processed -> Increase Stock
+      for (const item of order.items) {
+        await Product.findByIdAndUpdate(item.productId, { $inc: { stock: 1 } });
+      }
+    } else if (wasIn && status === "cancelled") {
+      // Order was in warehouse but now cancelled -> Decrease Stock
+      for (const item of order.items) {
+        await Product.findByIdAndUpdate(item.productId, { $inc: { stock: -1 } });
+      }
+    }
+
+    // Send email notification (non-blocking)
     const user = await User.findById(order.userId);
     if (user || order?.guest_email)
       sendStatusUpdateEmail(order, user, note).catch(() => {});
