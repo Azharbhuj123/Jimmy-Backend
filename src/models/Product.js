@@ -76,6 +76,35 @@ const productSchema = new mongoose.Schema(
       default: 0,
       min: [0, "Resale value cannot be negative"],
     },
+    pricingType: {
+      type: String,
+      enum: ["dynamic", "matrix"],
+      default: "dynamic",
+    },
+    basePrice: {
+      type: Number,
+      required: [
+        function () {
+          return this.pricingType !== "matrix";
+        },
+        "Base price is required",
+      ],
+      min: [0, "Base price cannot be negative"],
+      default: 0,
+    },
+    pricingMatrix: [
+      {
+        variant: { type: String, required: true, trim: true, lowercase: true },
+        type: { type: String, required: true, trim: true, lowercase: true },
+        condition: {
+          type: String,
+          required: true,
+          trim: true,
+          lowercase: true,
+        },
+        price: { type: Number, required: true, min: 0 },
+      },
+    ],
     steps: [stepSchema], // dynamic pricing steps
     images: [{ type: String }],
     isActive: {
@@ -98,6 +127,12 @@ const productSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+productSchema.index({
+  "pricingMatrix.variant": 1,
+  "pricingMatrix.type": 1,
+  "pricingMatrix.condition": 1,
+});
 
 productSchema.pre("save", function (next) {
   if (this.isModified("name")) {

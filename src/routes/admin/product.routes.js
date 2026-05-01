@@ -7,9 +7,7 @@ const productRules = [
   body("name").trim().notEmpty().withMessage("Product name is required"),
   // body('categoryId').isMongoId().withMessage('Valid categoryId is required'),
   body("brandId").isMongoId().withMessage("Valid brandId is required"),
-  body("basePrice")
-    .isFloat({ min: 0 })
-    .withMessage("basePrice must be a non-negative number"),
+  // body('basePrice').isFloat({ min: 0 }).withMessage('basePrice must be a non-negative number'),
 ];
 
 router.post("/", productRules, validate, ctrl.createProduct);

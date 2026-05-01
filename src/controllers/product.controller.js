@@ -16,7 +16,7 @@ const getProducts = asyncHandler(async (req, res) => {
   /**
    * 1. BUILD DYNAMIC QUERY
    */
-  const query = { isActive: true, steps: { $ne: [] } };
+  const query = { isActive: true };
   const andConditions = [];
 
   // Filter by Search Input

@@ -28,6 +28,15 @@ const calculatePrice = async (
   const selectedOptions = [];
   const errors = [];
 
+  const isMatrix = product.pricingType === 'matrix';
+
+  if (!isMatrix) {
+    runningPrice = product.basePrice || 0;
+    priceBreakdown.push({ label: 'Base Price', amount: runningPrice, runningTotal: runningPrice });
+  }
+
+  const userSelectionsMap = {};
+
   for (const step of product.steps) {
     // Filter all selections for this step
     const userSelections = selectedOptionsArr.filter(
@@ -41,67 +50,41 @@ const calculatePrice = async (
       continue;
     }
 
-    // Get all chosen options for this step
-    const chosenOptions = [];
-    for (const selection of userSelections) {
-      // We check both value and label just in case
-      const opt = step.options.find(
-        (o) =>
-          o.value === selection.optionValue ||
-          o.label === selection.optionValue,
-      );
-      if (opt) {
-        chosenOptions.push(opt);
-      }
-    }
+    userSelectionsMap[step.key] = userSelection.optionValue;
 
-    if (chosenOptions.length === 0) {
-      errors.push(`Invalid options for step "${step.title}".`);
+    const chosenOption = step.options.find((o) => o.value === userSelection.optionValue);
+    if (!chosenOption) {
+      errors.push(`Invalid option "${userSelection.optionValue}" for step "${step.title}".`);
       continue;
     }
 
-    // Lowest Price Logic: Pick the option with the minimum modifier
-    let pickedOption = chosenOptions[0];
-    let minModifier = isLocalPickup
-      ? pickedOption.pickupPriceModifier
-      : pickedOption.shipPriceModifier;
-
-    for (let i = 1; i < chosenOptions.length; i++) {
-      const currentModifier = isLocalPickup
-        ? chosenOptions[i].pickupPriceModifier
-        : chosenOptions[i].shipPriceModifier;
-      if (currentModifier < minModifier) {
-        minModifier = currentModifier;
-        pickedOption = chosenOptions[i];
+    if (!isMatrix) {
+      let adjustment = 0;
+      if (chosenOption.modifierType === 'percentage') {
+        adjustment = (runningPrice * chosenOption.priceModifier) / 100;
+      } else {
+        adjustment = chosenOption.priceModifier;
       }
+
+      runningPrice += adjustment;
+      runningPrice = Math.max(0, runningPrice); // price can never go negative
+
+      priceBreakdown.push({
+        label: `${step.title}: ${chosenOption.label}`,
+        modifierType: chosenOption.modifierType,
+        modifier: chosenOption.priceModifier,
+        adjustment: parseFloat(adjustment.toFixed(2)),
+        runningTotal: parseFloat(runningPrice.toFixed(2)),
+      });
     }
-
-    let adjustment = 0;
-    if (pickedOption.modifierType === "percentage") {
-      adjustment = (runningPrice * minModifier) / 100;
-    } else {
-      adjustment = minModifier;
-    }
-
-    runningPrice += adjustment;
-    runningPrice = Math.max(0, runningPrice); // price can never go negative
-
-    priceBreakdown.push({
-      label: `${step.title}: ${pickedOption.label}${chosenOptions.length > 1 ? " (Lowest among selected)" : ""}`,
-      condition: `${pickedOption.label}`,
-      modifierType: pickedOption.modifierType,
-      modifier: minModifier,
-      adjustment: parseFloat(adjustment.toFixed(2)),
-      runningTotal: parseFloat(runningPrice.toFixed(2)),
-    });
 
     selectedOptions.push({
       stepKey: step.key,
       stepTitle: step.title,
-      optionLabels: chosenOptions.map((o) => o.label),
-      pickedOptionLabel: pickedOption.label,
-      priceModifier: minModifier,
-      modifierType: pickedOption.modifierType,
+      optionLabel: chosenOption.label,
+      optionValue: chosenOption.value,
+      priceModifier: isMatrix ? 0 : chosenOption.priceModifier,
+      modifierType: isMatrix ? 'fixed' : chosenOption.modifierType,
     });
   }
 
@@ -113,8 +96,31 @@ const calculatePrice = async (
     );
   }
 
+  if (isMatrix) {
+    const variant = userSelectionsMap.variant?.toLowerCase();
+    const type = userSelectionsMap.type?.toLowerCase();
+    const condition = userSelectionsMap.condition?.toLowerCase();
+
+    if (!variant || !type || !condition) {
+      throw new ApiError(400, 'Missing required fields for matrix pricing combination (variant, type, condition). Please ensure steps use keys "variant", "type", and "condition".');
+    }
+
+    const match = product.pricingMatrix.find(p =>
+      p.variant === variant &&
+      p.type === type &&
+      p.condition === condition
+    );
+
+    if (!match) {
+      throw new ApiError(404, `No pricing found for selected combination: ${variant}, ${type}, ${condition}`);
+    }
+
+    runningPrice = match.price;
+    priceBreakdown.push({ label: 'Matrix Price', amount: match.price, runningTotal: runningPrice });
+  }
+
   return {
-    basePrice: 0,
+    basePrice: isMatrix ? runningPrice : (product.basePrice || 0),
     calculatedPrice: parseFloat(runningPrice.toFixed(2)),
     priceBreakdown,
     selectedOptions,
