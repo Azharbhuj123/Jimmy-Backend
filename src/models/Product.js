@@ -39,7 +39,7 @@ const productSchema = new mongoose.Schema(
     },
     carrier: {
       type: String,
-      required: [true, "Product carrier is required"],
+      // required: [true, "Product carrier is required"],
       trim: true,
     },
     slug: {

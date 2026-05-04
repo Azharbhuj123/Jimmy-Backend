@@ -24,6 +24,25 @@ const categorySchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    defaultPricing: {
+      baseMargin: { type: Number, default: 0 },
+    },
+    inspectionSteps: [
+      {
+        name: String,
+        key: String,
+        required: Boolean,
+      }
+    ],
+    conditionGradingRules: [
+      {
+        condition: String,
+        multiplier: Number,
+      }
+    ],
+    payoutLogic: {
+      formula: String,
+    }
   },
   { timestamps: true }
 );

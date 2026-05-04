@@ -12,6 +12,7 @@ const {
   getPaginationOptions,
   buildPaginationMeta,
 } = require("../utils/pagination");
+const { createPickupFromOrder } = require("../services/pickup.service");
 
 // POST /orders/calculate-price
 const calculateOrderPrice = asyncHandler(async (req, res) => {
@@ -81,6 +82,12 @@ const createOrder = asyncHandler(async (req, res) => {
     statusHistory: [{ status: "pending", note: "Order placed by user" }],
   });
 
+  let pickup = null;
+  // If order is pickup, create pickup record
+  if (fulfillmentType === "pickup") {
+    pickup = await createPickupFromOrder(order);
+  }
+
   // Increment totalOrders on each product (non-blocking)
   const productIds = [
     ...new Set(orderItems.map((i) => i.productId.toString())),
@@ -88,12 +95,12 @@ const createOrder = asyncHandler(async (req, res) => {
   Product.updateMany(
     { _id: { $in: productIds } },
     { $inc: { totalOrders: 1 } },
-  ).catch(() => {});
+  ).catch(() => { });
 
   // Send confirmation email (non-blocking)
-  sendOrderCreatedEmail(order, user).catch(() => {});
+  sendOrderCreatedEmail(order, user).catch(() => { });
 
-  ApiResponse.success(res, { order }, "Order placed successfully", 201);
+  ApiResponse.success(res, { order, pickup }, "Order placed successfully", 201);
 });
 
 // GET /orders

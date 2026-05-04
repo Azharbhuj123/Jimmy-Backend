@@ -3,15 +3,26 @@ const { body } = require('express-validator');
 const ctrl = require('../../controllers/admin/pickup.controller');
 const validate = require('../../middlewares/validate.middleware');
 
-// ── Pickup orders ─────────────────────────────────────────────────────────────
-router.get('/', ctrl.getPickups);
+// ── Metrics & Map Data ─────────────────────────────────────────────────────────
+router.get('/metrics', ctrl.getMetrics);
+router.get('/map-data', ctrl.getMapData);
 
-router.put(
-  '/:id/assign-driver',
-  [body('driverId').isMongoId().withMessage('Valid driverId is required')],
+// ── Pickups ───────────────────────────────────────────────────────────────────
+router.post(
+  '/',
+  [
+    body('orderId').isMongoId().withMessage('Valid orderId is required'),
+    body('quotedPayout').isNumeric().withMessage('quotedPayout is required'),
+    body('expectedResale').isNumeric().withMessage('expectedResale is required'),
+    body('pickupAddress').notEmpty().withMessage('pickupAddress is required'),
+    body('pickupFlags').optional().isArray(),
+    body('pickupFlags.*').isIn(['meet_at_police_station', 'customer_negotiating', 'high_risk', 'repeat_seller']).withMessage('Invalid pickup flag'),
+  ],
   validate,
-  ctrl.assignDriver
+  ctrl.createPickup
 );
+
+router.get('/', ctrl.getAllPickups);
 
 router.put(
   '/:id/status',
@@ -20,19 +31,13 @@ router.put(
   ctrl.updatePickupStatus
 );
 
-// ── Driver management ─────────────────────────────────────────────────────────
-router.post(
-  '/drivers',
-  [
-    body('name').trim().notEmpty().withMessage('Name is required'),
-    body('phone').trim().notEmpty().withMessage('Phone is required'),
-  ],
+router.put(
+  '/:id/assign',
+  [body('driverId').isMongoId().withMessage('Valid driverId is required')],
   validate,
-  ctrl.createDriver
+  ctrl.assignDriver
 );
 
-router.get('/drivers', ctrl.getDrivers);
-router.put('/drivers/:id', ctrl.updateDriver);
-router.delete('/drivers/:id', ctrl.deleteDriver);
+router.post('/:id/auto-assign', ctrl.autoAssignDriver)
 
 module.exports = router;

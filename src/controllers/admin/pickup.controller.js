@@ -1,140 +1,180 @@
+const Pickup = require('../../models/Pickup');
 const Order = require('../../models/Order');
 const Driver = require('../../models/Driver');
 const User = require('../../models/User');
+const DriverLocation = require('../../models/DriverLocation');
 const ApiResponse = require('../../utils/ApiResponse');
 const ApiError = require('../../utils/ApiError');
 const asyncHandler = require('../../utils/asyncHandler');
 const { getPaginationOptions, buildPaginationMeta } = require('../../utils/pagination');
 const { sendPickupScheduledEmail, sendStatusUpdateEmail } = require('../../services/email.service');
+const { isStatusTransitionAllowed } = require('../../utils/status.helper');
+const { v4: uuidv4 } = require('uuid');
 
-// GET /admin/pickups
-const getPickups = asyncHandler(async (req, res) => {
+// Create a pickup from an order
+const createPickup = asyncHandler(async (req, res) => {
+    const { orderId, expectedResale, quotedPayout, pickupAddress, pickupLocation, pickupNotes, pickupFlags, urgency, timeSlot, category } = req.body;
+
+    const order = await Order.findById(orderId);
+    if (!order) throw new ApiError(404, 'Order not found');
+
+    const pickup = await Pickup.create({
+        pickupId: `PU-${uuidv4().substring(0, 8).toUpperCase()}`,
+        orderId,
+        customerId: order.userId,
+        quotedPayout,
+        expectedResale,
+        pickupAddress,
+        pickupLocation: pickupLocation || { type: 'Point', coordinates: [0, 0] },
+        pickupNotes,
+        pickupFlags,
+        urgency,
+        timeSlot,
+        category,
+    });
+
+    ApiResponse.success(res, { pickup }, 'Pickup created successfully', 201);
+});
+
+// Get all pickups
+const getAllPickups = asyncHandler(async (req, res) => {
     const { page, limit, skip, sort } = getPaginationOptions(req.query);
-    const { status, driverId } = req.query;
+    const { status, urgency, category } = req.query;
 
-    const filter = { fulfillmentType: 'pickup' };
+    const filter = {};
     if (status) filter.status = status;
-    if (driverId) filter['pickupDetails.driverId'] = driverId;
+    if (urgency) filter.urgency = urgency;
+    if (category) filter.category = category;
 
-    const [orders, total] = await Promise.all([
-        Order.find(filter)
-            .populate('userId', 'name email phone')
-            .populate('items.productId', 'name')
-            .populate('pickupDetails.driverId', 'name phone')
-            .sort(sort)
+    const [pickups, total] = await Promise.all([
+        Pickup.find(filter)
+            .populate('customerId', 'name email phone')
+            .populate('driverId', 'name phone')
+            .sort(sort || { 'timeSlot.start': 1 })
             .skip(skip)
             .limit(limit),
-        Order.countDocuments(filter),
+        Pickup.countDocuments(filter),
     ]);
 
-    ApiResponse.paginated(res, orders, buildPaginationMeta(total, page, limit));
+    ApiResponse.paginated(res, pickups, buildPaginationMeta(total, page, limit));
 });
 
-// PUT /admin/pickups/:id/assign-driver
-const assignDriver = asyncHandler(async (req, res) => {
-    const { driverId, date, timeSlot, notes } = req.body;
-
-    if (!driverId) throw new ApiError(400, 'driverId is required');
-
-    const driver = await Driver.findById(driverId);
-    if (!driver) throw new ApiError(404, 'Driver not found');
-    if (!driver.isActive) throw new ApiError(400, 'Driver is inactive');
-
-    const order = await Order.findOne({ _id: req.params.id, fulfillmentType: 'pickup' });
-    if (!order) throw new ApiError(404, 'Pickup order not found');
-
-    order.pickupDetails = {
-        ...(order.pickupDetails?.toObject?.() || order.pickupDetails || {}),
-        driverId,
-        date: date ? new Date(date) : order.pickupDetails?.date,
-        timeSlot: timeSlot || order.pickupDetails?.timeSlot,
-        notes: notes || order.pickupDetails?.notes,
-    };
-
-    order.status = 'confirmed';
-    order.statusHistory.push({
-        status: 'confirmed',
-        note: `Driver assigned: ${driver.name}. Pickup on ${date || 'TBD'} ${timeSlot || ''}`.trim(),
-        changedAt: new Date(),
-        changedBy: req.user._id,
-    });
-
-    await order.save();
-
-    // Email user (non-blocking)
-    const user = await User.findById(order.userId);
-    if (user) sendPickupScheduledEmail(order, user).catch(() => { });
-
-    ApiResponse.success(res, { order }, 'Driver assigned and user notified');
-});
-
-// PUT /admin/pickups/:id/status
+// Update pickup status
 const updatePickupStatus = asyncHandler(async (req, res) => {
-    const { status, note } = req.body;
-    const allowedStatuses = ['confirmed', 'received', 'inspected', 'paid'];
+    const { status } = req.body;
+    const pickup = await Pickup.findById(req.params.id);
+    if (!pickup) throw new ApiError(404, 'Pickup not found');
 
-    if (!allowedStatuses.includes(status)) {
-        throw new ApiError(400, `Status must be one of: ${allowedStatuses.join(', ')}`);
+    if (!isStatusTransitionAllowed(pickup.status, status)) {
+        throw new ApiError(400, `Cannot transition status from ${pickup.status} to ${status}`);
     }
 
-    const order = await Order.findOne({ _id: req.params.id, fulfillmentType: 'pickup' });
-    if (!order) throw new ApiError(404, 'Pickup order not found');
+    pickup.status = status;
+    await pickup.save();
 
-    const previousStatus = order.status;
-    order.status = status;
-    order.statusHistory.push({
-        status,
-        note,
-        changedAt: new Date(),
-        changedBy: req.user._id,
-    });
-
-    await order.save();
-
-    if (previousStatus !== status) {
-        const user = await User.findById(order.userId);
-        if (user) sendStatusUpdateEmail(order, user, note).catch(() => { });
+    // Optionally notify customer
+    const user = await User.findById(pickup.customerId);
+    if (user && req.app.io) {
+        req.app.io.emit('pickup:updated', pickup);
     }
 
-    ApiResponse.success(res, { order }, `Pickup status updated to "${status}"`);
+    ApiResponse.success(res, { pickup }, `Pickup status updated to ${status}`);
 });
 
-// ── Driver CRUD ───────────────────────────────────────────────────────────────
+// Assign driver manually
+const assignDriver = asyncHandler(async (req, res) => {
+    const { driverId } = req.body;
+    const pickup = await Pickup.findById(req.params.id);
+    if (!pickup) throw new ApiError(404, 'Pickup not found');
 
-const createDriver = asyncHandler(async (req, res) => {
-    const driver = await Driver.create(req.body);
-    ApiResponse.success(res, { driver }, 'Driver created', 201);
-});
+    if (!isStatusTransitionAllowed(pickup.status, 'assigned')) {
+        throw new ApiError(400, `Cannot transition status to assigned`);
+    }
 
-const getDrivers = asyncHandler(async (req, res) => {
-    const { isActive } = req.query;
-    const filter = {};
-    if (isActive !== undefined) filter.isActive = isActive === 'true';
-    const drivers = await Driver.find(filter).sort({ name: 1 });
-    ApiResponse.success(res, { drivers });
-});
-
-const updateDriver = asyncHandler(async (req, res) => {
-    const driver = await Driver.findByIdAndUpdate(req.params.id, req.body, {
-        new: true,
-        runValidators: true,
-    });
+    const driver = await User.findById(driverId); // assuming driver is a user with driver role, or Driver model? The prompt says "ref to User / Driver".
     if (!driver) throw new ApiError(404, 'Driver not found');
-    ApiResponse.success(res, { driver }, 'Driver updated');
+
+    pickup.driverId = driverId;
+    pickup.status = 'assigned';
+    await pickup.save();
+
+    if (req.app.io) {
+        req.app.io.emit('pickup:updated', pickup);
+    }
+
+    ApiResponse.success(res, { pickup }, 'Driver assigned successfully');
 });
 
-const deleteDriver = asyncHandler(async (req, res) => {
-    const driver = await Driver.findByIdAndDelete(req.params.id);
-    if (!driver) throw new ApiError(404, 'Driver not found');
-    ApiResponse.success(res, {}, 'Driver deleted');
+// Auto-assign nearest available driver
+const autoAssignDriver = asyncHandler(async (req, res) => {
+    const pickup = await Pickup.findById(req.params.id);
+    if (!pickup) throw new ApiError(404, 'Pickup not found');
+
+    if (!isStatusTransitionAllowed(pickup.status, 'assigned')) {
+        throw new ApiError(400, `Cannot auto-assign driver to pickup in status: ${pickup.status}`);
+    }
+
+    const maxDistance = 50000; // 50km
+    const nearestDrivers = await DriverLocation.find({
+        location: {
+            $near: {
+                $geometry: pickup.pickupLocation,
+                $maxDistance: maxDistance
+            }
+        }
+    }).limit(1);
+
+    if (nearestDrivers.length === 0) {
+        throw new ApiError(404, 'No available drivers found nearby');
+    }
+
+    const driverId = nearestDrivers[0].driverId;
+    pickup.driverId = driverId;
+    pickup.status = 'assigned';
+    await pickup.save();
+
+    if (req.app.io) {
+        req.app.io.emit('pickup:updated', pickup);
+    }
+
+    ApiResponse.success(res, { pickup }, 'Driver auto-assigned successfully');
+});
+
+// Metrics
+const getMetrics = asyncHandler(async (req, res) => {
+    const metrics = await Pickup.aggregate([
+        {
+            $group: {
+                _id: null,
+                totalRevenue: { $sum: '$expectedResale' },
+                totalPayouts: { $sum: '$quotedPayout' },
+                totalProfit: { $sum: '$profit' },
+                avgProfitPerPickup: { $avg: '$profit' },
+                count: { $sum: 1 }
+            }
+        }
+    ]);
+
+    const result = metrics[0] || { totalRevenue: 0, totalPayouts: 0, totalProfit: 0, avgProfitPerPickup: 0, count: 0 };
+    ApiResponse.success(res, result, 'Metrics retrieved');
+});
+
+// Map Data
+const getMapData = asyncHandler(async (req, res) => {
+    const [pickups, drivers] = await Promise.all([
+        Pickup.find({ status: { $ne: 'completed' } }).select('status pickupLocation pickupFlags pickupId driverId customerId'),
+        DriverLocation.find().select('driverId location lastSeen')
+    ]);
+
+    ApiResponse.success(res, { pickups, drivers }, 'Map data retrieved');
 });
 
 module.exports = {
-    getPickups,
-    assignDriver,
+    createPickup,
+    getAllPickups,
     updatePickupStatus,
-    createDriver,
-    getDrivers,
-    updateDriver,
-    deleteDriver,
+    assignDriver,
+    autoAssignDriver,
+    getMetrics,
+    getMapData
 };

@@ -99,7 +99,7 @@ const seedProduct = async () => {
 
 const seedAdmin = async () => {
   try {
-    seedProduct();
+    // await seedProduct();
     const existing = await User.findOne({ role: "admin" });
     if (existing) {
       console.log("ℹ️  Admin account already exists, skipping seed.");
