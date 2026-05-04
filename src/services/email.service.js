@@ -295,9 +295,9 @@ const sendDriverAssignmentEmail = async (driver, pickup) => {
     pd.addressLine2,
   ].filter(Boolean);
   const cityStateZip = [
-    pd.city,
-    pd.state,
-    pd.zipCode,
+    pd?.city || "Los Angeles",
+    pd?.state || "CA",
+    pd?.zipCode || "90001",
   ].filter(Boolean).join(', ');
   const fullAddress = pickup.pickupAddress || [...addressLines, cityStateZip].filter(Boolean).join('<br/>') || '—';
 
@@ -402,6 +402,52 @@ const sendContactNotificationEmail = async (contact) => {
   });
 };
 
+// ────────────────────────────────────────────────────────────────────────────
+// 9. DRIVER WELCOME / REGISTRATION
+// ────────────────────────────────────────────────────────────────────────────
+
+const sendDriverWelcomeEmail = async (driver, plainPassword) => {
+  await sendEmail({
+    to: driver.email,
+    subject: `Welcome to QuickieCell — Your Driver Account Is Ready`,
+    html: emailWrapper(`
+      <div style="background:#1a1a2e;padding:16px 20px;border-radius:6px;margin-bottom:20px;">
+        <h3 style="color:#fff;margin:0;">🚗 Welcome to the QuickieCell Driver Team!</h3>
+      </div>
+
+      <p>Hi <strong>${driver.name}</strong>,</p>
+      <p>
+        The admin has registered you as a driver on the <strong>QuickieCell</strong> platform.
+      </p>
+
+      ${table([
+        infoRow('Name',  driver.name),
+        infoRow('Phone', driver.phone),
+        infoRow('Email (Login)', `<a href="mailto:${driver.email}" style="color:#1a1a2e;">${driver.email}</a>`),
+      ])}
+
+      <h4 style="color:#1a1a2e;margin-top:24px;">🔑 Your Temporary Password</h4>
+      <div style="margin:16px 0;text-align:center;">
+        <div style="display:inline-block;background:#1a1a2e;color:#fff;padding:18px 36px;border-radius:8px;font-size:28px;font-weight:bold;letter-spacing:6px;font-family:monospace;">
+          ${plainPassword}
+        </div>
+      </div>
+
+     
+
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px 18px;margin-top:16px;">
+        <p style="margin:0;font-size:14px;color:#0369a1;">
+          📞 If you have any questions or need help, please contact your admin directly.
+        </p>
+      </div>
+
+      <p style="color:#888;font-size:13px;margin-top:24px;">
+        This is an automated registration notification. Please do not reply to this email.
+      </p>
+    `),
+  });
+};
+
 module.exports = {
   sendEmail,
   sendOrderCreatedEmail,
@@ -411,5 +457,6 @@ module.exports = {
   sendPasswordResetEmail,
   sendPickupScheduledEmail,
   sendDriverAssignmentEmail,
+  sendDriverWelcomeEmail,
   sendContactNotificationEmail,
 };

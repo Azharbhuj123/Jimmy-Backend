@@ -8,6 +8,7 @@ router.post(
   [
     body('name').trim().notEmpty().withMessage('Name is required'),
     body('phone').trim().notEmpty().withMessage('Phone is required'),
+    body('email').trim().isEmail().withMessage('A valid email is required'),
   ],
   validate,
   ctrl.createDriver

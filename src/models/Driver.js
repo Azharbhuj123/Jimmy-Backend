@@ -17,6 +17,10 @@ const driverSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    password: {
+      type: String,
+      trim: true, 
+    },
     isActive: {
       type: Boolean,
       default: true,

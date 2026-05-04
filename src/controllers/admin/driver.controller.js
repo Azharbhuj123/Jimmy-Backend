@@ -3,9 +3,29 @@ const Pickup = require('../../models/Pickup');
 const ApiResponse = require('../../utils/ApiResponse');
 const ApiError = require('../../utils/ApiError');
 const asyncHandler = require('../../utils/asyncHandler');
+const { sendDriverWelcomeEmail } = require('../../services/email.service');
+
+// Generate a random 8-character alphanumeric password
+const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let pwd = '';
+    for (let i = 0; i < 8; i++) {
+        pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pwd;
+};
 
 const createDriver = asyncHandler(async (req, res) => {
-    const driver = await Driver.create(req.body);
+    const { email } = req.body;
+    if (!email) throw new ApiError(400, 'Driver email is required');
+
+    // Generate and attach password before saving
+    const plainPassword = generatePassword();
+    const driver = await Driver.create({ ...req.body, password: plainPassword });
+
+    // Send welcome email with credentials (non-blocking)
+    sendDriverWelcomeEmail(driver, plainPassword).catch(() => {});
+
     ApiResponse.success(res, { driver }, 'Driver created', 201);
 });
 
