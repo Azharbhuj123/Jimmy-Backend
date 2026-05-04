@@ -39,7 +39,7 @@ const getOrders = asyncHandler(async (req, res) => {
     paymentStatus,
   } = req.query;
 
-  const filter = {};
+  const filter = { fulfillmentType: "shipping" };
   if (status) filter.status = status;
   if (userId) filter.userId = userId;
   if (fulfillmentType) filter.fulfillmentType = fulfillmentType;
@@ -109,7 +109,8 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
   // Handle Stock Adjustment (Automatic)
   if (previousStatus !== status) {
-    const isInWarehouse = (s) => ["received", "inspected", "ready_to_pay", "paid"].includes(s);
+    const isInWarehouse = (s) =>
+      ["received", "inspected", "ready_to_pay", "paid"].includes(s);
     const wasIn = isInWarehouse(previousStatus);
     const isNowIn = isInWarehouse(status);
 
@@ -121,7 +122,9 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     } else if (wasIn && status === "cancelled") {
       // Order was in warehouse but now cancelled -> Decrease Stock
       for (const item of order.items) {
-        await Product.findByIdAndUpdate(item.productId, { $inc: { stock: -1 } });
+        await Product.findByIdAndUpdate(item.productId, {
+          $inc: { stock: -1 },
+        });
       }
     }
 

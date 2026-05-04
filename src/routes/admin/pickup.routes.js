@@ -32,8 +32,13 @@ router.put(
 );
 
 router.put(
-  '/:id/assign',
-  [body('driverId').isMongoId().withMessage('Valid driverId is required')],
+  '/:id/assign-driver',
+  [
+    body('driverId').isMongoId().withMessage('Valid driverId is required'),
+    body('date').optional().isISO8601().withMessage('date must be a valid date'),
+    body('timeSlot').optional().isString(),
+    body('notes').optional().isString(),
+  ],
   validate,
   ctrl.assignDriver
 );

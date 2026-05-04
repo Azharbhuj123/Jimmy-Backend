@@ -36,6 +36,11 @@ const deleteDriver = asyncHandler(async (req, res) => {
 const getDriverWorkload = asyncHandler(async (req, res) => {
     const workload = await Pickup.aggregate([
         {
+            $match: {
+                driverId: { $ne: null }
+            }
+        },
+        {
             $group: {
                 _id: '$driverId',
                 assignedCount: { $sum: { $cond: [{ $eq: ['$status', 'assigned'] }, 1, 0] } },
@@ -45,19 +50,24 @@ const getDriverWorkload = asyncHandler(async (req, res) => {
         },
         {
             $lookup: {
-                from: 'users',
+                from: 'drivers',
                 localField: '_id',
                 foreignField: '_id',
                 as: 'driverInfo'
             }
         },
         {
-            $unwind: '$driverInfo'
+            $unwind: {
+                path: '$driverInfo',
+                    preserveNullAndEmptyArrays: true
+            }
         },
         {
             $project: {
                 driverId: '$_id',
-                name: '$driverInfo.name',
+                name:  '$driverInfo.name',
+                phone: '$driverInfo.phone',
+                email: '$driverInfo.email',
                 assignedCount: 1,
                 enRouteCount: 1,
                 totalActive: 1

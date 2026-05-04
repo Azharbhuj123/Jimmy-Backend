@@ -241,29 +241,142 @@ const sendPasswordResetEmail = async (user, resetCode) => {
 
 const sendPickupScheduledEmail = async (order, user) => {
   const { pickupDetails } = order;
-  const recipientEmail = user?.email || order?.guest_email;
+  const recipientEmail = user?.email || order?.guest_email || order?.userDetails?.email;
   const recipientName = user?.name || order?.userDetails?.name || order?.guest_name || 'Customer';
+
+  const addressBlock = [
+    pickupDetails?.addressLine1,
+    pickupDetails?.addressLine2,
+    pickupDetails?.city,
+    pickupDetails?.state,
+    pickupDetails?.zipCode,
+    pickupDetails?.address,  // fallback flat address
+  ].filter(Boolean).join(', ') || '—';
 
   await sendEmail({
     to: recipientEmail,
     subject: `Pickup Scheduled — ${order.orderNumber}`,
     html: emailWrapper(`
-      <h3 style="color:#1a1a2e;">Your Pickup Has Been Scheduled!</h3>
-      <p>Hi <strong>${recipientName}</strong>, a driver has been assigned for your pickup.</p>
+      <div style="background:#1a1a2e;padding:16px 20px;border-radius:6px;margin-bottom:20px;">
+        <h3 style="color:#fff;margin:0;">🚗 Your Pickup Has Been Scheduled!</h3>
+      </div>
+      <p>Hi <strong>${recipientName}</strong>, a driver has been assigned for your pickup order. Please be ready at the scheduled time.</p>
       ${table([
-      infoRow('Order Number', order.orderNumber),
-      infoRow('Pickup Date', pickupDetails.date ? new Date(pickupDetails.date).toLocaleDateString() : '—'),
-      infoRow('Time Slot', pickupDetails.timeSlot || '—'),
-      infoRow('Address', pickupDetails.address || '—'),
-    ])}
-      ${pickupDetails.notes ? `<p style="color:#555;"><strong>Notes:</strong> ${pickupDetails.notes}</p>` : ''}
-      <p style="color:#555;font-size:14px;">Please ensure someone is available at the address during the time slot.</p>
+        infoRow('Order Number', order.orderNumber),
+        infoRow('Pickup Date', pickupDetails?.date ? new Date(pickupDetails.date).toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) : '—'),
+        infoRow('Time Slot', pickupDetails?.timeSlot || pickupDetails?.time || '—'),
+        infoRow('Pickup Address', addressBlock),
+      ])}
+      ${pickupDetails?.notes ? `<div style="background:#fffbe6;border-left:4px solid #f0c040;padding:12px 16px;border-radius:4px;margin-top:16px;"><strong>Special Instructions:</strong><br/><span style="color:#555;">${pickupDetails.notes}</span></div>` : ''}
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px;margin-top:20px;">
+        <p style="margin:0;font-size:14px;color:#0369a1;">📌 <strong>Please make sure:</strong></p>
+        <ul style="color:#555;font-size:14px;line-height:1.8;margin-top:8px;">
+          <li>Someone is available at the address during the time slot.</li>
+          <li>Your items are ready and accessible for the driver.</li>
+          <li>You have a valid photo ID ready if needed.</li>
+        </ul>
+      </div>
+      <p style="color:#888;font-size:13px;margin-top:20px;">If you need to reschedule or have questions, please contact our support team.</p>
     `),
   });
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-// 7. CONTACT FORM SUBMISSION
+// 7. DRIVER ASSIGNMENT NOTIFICATION
+// ────────────────────────────────────────────────────────────────────────────
+
+const sendDriverAssignmentEmail = async (driver, pickup) => {
+  const pd = pickup.pickupDetails || {};
+  const order = pickup.orderId;
+
+  // Build full pickup address
+  const addressLines = [
+    pd.addressLine1,
+    pd.addressLine2,
+  ].filter(Boolean);
+  const cityStateZip = [
+    pd.city,
+    pd.state,
+    pd.zipCode,
+  ].filter(Boolean).join(', ');
+  const fullAddress = pickup.pickupAddress || [...addressLines, cityStateZip].filter(Boolean).join('<br/>') || '—';
+
+  // Customer contact info
+  const customerName  = pickup.userDetails?.name  || '—';
+  const customerPhone = pickup.userDetails?.phone  || pd.phone || '—';
+  const customerEmail = pickup.userDetails?.email  || pickup.guest_email || '—';
+
+  // Schedule info
+  const pickupDate = pd.pickupDate
+    ? new Date(pd.pickupDate).toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
+    : '—';
+  const timeSlot = pd.time || '—';
+
+  // Order items summary
+  const itemsHtml = Array.isArray(order?.items) && order.items.length
+    ? order.items.map(item => `
+        <li style="padding:6px 0;border-bottom:1px solid #eee;font-size:14px;">
+          <strong>${item.productName || 'Item'}</strong>
+          <span style="float:right;color:#27ae60;font-weight:bold;">$${(item.calculatedPrice || 0).toFixed(2)}</span>
+        </li>
+      `).join('')
+    : '<li style="color:#888;font-size:14px;">No item details available</li>';
+
+  await sendEmail({
+    to: driver.email,
+    subject: `New Pickup Assignment — ${order?.orderNumber || pickup.pickupId}`,
+    html: emailWrapper(`
+      <div style="background:#16a34a;padding:16px 20px;border-radius:6px;margin-bottom:20px;">
+        <h3 style="color:#fff;margin:0;">📦 You Have a New Pickup Assignment!</h3>
+      </div>
+
+      <p>Hi <strong>${driver.name}</strong>, you have been assigned a new pickup. Please review the details below and be at the location on time.</p>
+
+      <h4 style="color:#1a1a2e;border-bottom:2px solid #1a1a2e;padding-bottom:6px;margin-top:24px;">📅 Schedule</h4>
+      ${table([
+        infoRow('Pickup Date', pickupDate),
+        infoRow('Time Slot',   timeSlot),
+        infoRow('Order #',     order?.orderNumber || pickup.pickupId),
+        infoRow('Status',      '<span style="color:#16a34a;font-weight:bold;">Assigned to You</span>'),
+      ])}
+
+      <h4 style="color:#1a1a2e;border-bottom:2px solid #1a1a2e;padding-bottom:6px;margin-top:24px;">📍 Pickup Address</h4>
+      <div style="background:#f9f9f9;border-left:4px solid #1a1a2e;padding:16px 20px;border-radius:4px;font-size:15px;line-height:1.8;">
+        ${fullAddress}
+      </div>
+
+      <h4 style="color:#1a1a2e;border-bottom:2px solid #1a1a2e;padding-bottom:6px;margin-top:24px;">👤 Customer Contact</h4>
+      ${table([
+        infoRow('Name',  customerName),
+        infoRow('Phone', `<a href="tel:${customerPhone}" style="color:#1a1a2e;">${customerPhone}</a>`),
+        infoRow('Email', `<a href="mailto:${customerEmail}" style="color:#1a1a2e;">${customerEmail}</a>`),
+      ])}
+
+      <h4 style="color:#1a1a2e;border-bottom:2px solid #1a1a2e;padding-bottom:6px;margin-top:24px;">🛍️ Items to Collect</h4>
+      <ul style="list-style:none;padding:0;margin:0;">
+        ${itemsHtml}
+      </ul>
+      <p style="margin-top:10px;font-size:14px;font-weight:bold;text-align:right;">Total Value: <span style="color:#1a1a2e;">$${(order?.totalCalculatedPrice || pickup.totalCalculatedPrice || 0).toFixed(2)}</span></p>
+
+      ${pickup.pickupNotes ? `<div style="background:#fffbe6;border-left:4px solid #f0c040;padding:12px 16px;border-radius:4px;margin-top:20px;"><strong>📝 Special Instructions:</strong><br/><span style="color:#555;">${pickup.pickupNotes}</span></div>` : ''}
+
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin-top:24px;">
+        <p style="margin:0;font-size:14px;color:#dc2626;">⚠️ <strong>Important Reminders:</strong></p>
+        <ul style="color:#555;font-size:14px;line-height:1.8;margin-top:8px;">
+          <li>Verify customer identity before accepting items.</li>
+          <li>Inspect items for any visible damage and note it.</li>
+          <li>Get the customer's signature on receipt.</li>
+          <li>Contact dispatch immediately if you encounter any issues.</li>
+        </ul>
+      </div>
+
+      <p style="color:#888;font-size:13px;margin-top:24px;">If you have any questions or cannot complete this pickup, contact the admin immediately.</p>
+    `),
+  });
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// 8. CONTACT FORM SUBMISSION
 // ────────────────────────────────────────────────────────────────────────────
 
 const sendContactNotificationEmail = async (contact) => {
@@ -297,5 +410,6 @@ module.exports = {
   sendPaymentSentEmail,
   sendPasswordResetEmail,
   sendPickupScheduledEmail,
+  sendDriverAssignmentEmail,
   sendContactNotificationEmail,
 };

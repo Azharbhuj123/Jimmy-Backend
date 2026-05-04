@@ -56,6 +56,22 @@ const createOrder = asyncHandler(async (req, res) => {
     priceBreakdown: r.priceBreakdown,
   }));
 
+  let userDetails = {
+    name: guest_email
+      ? shippingDetails?.name
+        ? shippingDetails?.name
+        : pickupDetails?.name
+      : user.name,
+    email: guest_email ? guest_email : user.email,
+    phone:
+      fulfillmentType === "shipping"
+        ? shippingDetails?.phone
+        : pickupDetails?.phone || "",
+    preferredContact: preferredContact || "email",
+    city: shippingDetails?.city || "",
+    state: shippingDetails?.state || "",
+  };
+
   const order = await Order.create({
     userId: user ? user._id : null,
     guest_email: user ? "" : guest_email,
@@ -67,17 +83,7 @@ const createOrder = asyncHandler(async (req, res) => {
       fulfillmentType === "shipping" ? shippingDetails : undefined,
     pickupDetails: fulfillmentType === "pickup" ? pickupDetails : undefined,
     notes,
-    userDetails: {
-      name: guest_email ? shippingDetails?.name : user.name,
-      email: guest_email ? guest_email : user.email,
-      phone:
-        fulfillmentType === "shipping"
-          ? shippingDetails?.phone
-          : pickupDetails?.phone,
-      preferredContact: preferredContact || "email",
-      city: shippingDetails?.city || "",
-      state: shippingDetails?.state || "",
-    },
+    userDetails,
     paymentMethod,
     statusHistory: [{ status: "pending", note: "Order placed by user" }],
   });
@@ -85,7 +91,7 @@ const createOrder = asyncHandler(async (req, res) => {
   let pickup = null;
   // If order is pickup, create pickup record
   if (fulfillmentType === "pickup") {
-    pickup = await createPickupFromOrder(order);
+    pickup = await createPickupFromOrder(order, userDetails);
   }
 
   // Increment totalOrders on each product (non-blocking)
@@ -95,10 +101,10 @@ const createOrder = asyncHandler(async (req, res) => {
   Product.updateMany(
     { _id: { $in: productIds } },
     { $inc: { totalOrders: 1 } },
-  ).catch(() => { });
+  ).catch(() => {});
 
   // Send confirmation email (non-blocking)
-  sendOrderCreatedEmail(order, user).catch(() => { });
+  sendOrderCreatedEmail(order, user).catch(() => {});
 
   ApiResponse.success(res, { order, pickup }, "Order placed successfully", 201);
 });

@@ -7,7 +7,7 @@ const ApiResponse = require('../../utils/ApiResponse');
 const ApiError = require('../../utils/ApiError');
 const asyncHandler = require('../../utils/asyncHandler');
 const { getPaginationOptions, buildPaginationMeta } = require('../../utils/pagination');
-const { sendPickupScheduledEmail, sendStatusUpdateEmail } = require('../../services/email.service');
+const { sendPickupScheduledEmail, sendStatusUpdateEmail, sendDriverAssignmentEmail } = require('../../services/email.service');
 const { isStatusTransitionAllowed } = require('../../utils/status.helper');
 const { v4: uuidv4 } = require('uuid');
 
@@ -49,6 +49,7 @@ const getAllPickups = asyncHandler(async (req, res) => {
     const [pickups, total] = await Promise.all([
         Pickup.find(filter)
             .populate('customerId', 'name email phone')
+            .populate('orderId', 'orderNumber')
             .populate('driverId', 'name phone')
             .sort(sort || { 'timeSlot.start': 1 })
             .skip(skip)
@@ -83,23 +84,58 @@ const updatePickupStatus = asyncHandler(async (req, res) => {
 
 // Assign driver manually
 const assignDriver = asyncHandler(async (req, res) => {
-    const { driverId } = req.body;
-    const pickup = await Pickup.findById(req.params.id);
+    const { driverId, date, timeSlot, notes } = req.body;
+
+    const pickup = await Pickup.findById(req.params.id)
+        .populate('orderId', 'orderNumber totalCalculatedPrice items')
+        .populate('customerId', 'name email');
     if (!pickup) throw new ApiError(404, 'Pickup not found');
 
-    if (!isStatusTransitionAllowed(pickup.status, 'assigned')) {
-        throw new ApiError(400, `Cannot transition status to assigned`);
-    }
-
-    const driver = await User.findById(driverId); // assuming driver is a user with driver role, or Driver model? The prompt says "ref to User / Driver".
+    const driver = await Driver.findById(driverId);
     if (!driver) throw new ApiError(404, 'Driver not found');
 
+    // Update driver assignment
     pickup.driverId = driverId;
     pickup.status = 'assigned';
+
+    // Persist schedule details into pickupDetails sub-doc
+    if (!pickup.pickupDetails) pickup.pickupDetails = {};
+    if (date) pickup.pickupDetails.pickupDate = new Date(date);
+    if (timeSlot) pickup.pickupDetails.time = timeSlot;
+    if (notes) pickup.pickupNotes = notes;
+    // Also store driverId inside the embedded pickupDetails (used by frontend display)
+    pickup.pickupDetails.driverId = driverId;
+
+    pickup.markModified('pickupDetails');
     await pickup.save();
 
+    // ── Emit realtime event ────────────────────────────────────────
     if (req.app.io) {
         req.app.io.emit('pickup:updated', pickup);
+    }
+
+    // ── Email driver (non-blocking) ────────────────────────────────
+    if (driver.email) {
+        sendDriverAssignmentEmail(driver, pickup).catch(() => {});
+    }
+
+    // ── Email customer (non-blocking) ─────────────────────────────
+    const customerEmail = pickup.userDetails?.email || pickup.guest_email;
+    if (customerEmail) {
+        sendPickupScheduledEmail(
+            {
+                orderNumber: pickup.orderId?.orderNumber || pickup.pickupId,
+                pickupDetails: {
+                    date: date || null,
+                    timeSlot: timeSlot || null,
+                    address: pickup.pickupAddress,
+                    notes: notes || null,
+                },
+                userDetails: pickup.userDetails,
+                guest_email: pickup.guest_email,
+            },
+            pickup.customerId
+        ).catch(() => {});
     }
 
     ApiResponse.success(res, { pickup }, 'Driver assigned successfully');

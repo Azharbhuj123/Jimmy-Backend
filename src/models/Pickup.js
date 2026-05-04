@@ -1,4 +1,5 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
+const pickupDetailsSchema = require("./PickupSchema");
 
 const pickupSchema = new mongoose.Schema(
   {
@@ -9,30 +10,32 @@ const pickupSchema = new mongoose.Schema(
     },
     orderId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Order',
+      ref: "Order",
       required: true,
     },
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      ref: "User",
     },
+    guest_email: { type: String, trim: true },
+    pickupDetails: pickupDetailsSchema,
+
     driverId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "Driver",
       default: null,
     },
     status: {
       type: String,
-      enum: ['unassigned', 'assigned', 'en_route', 'completed', 'failed'],
-      default: 'unassigned',
+      enum: ["unassigned", "assigned", "en_route", "completed", "failed"],
+      default: "unassigned",
     },
     pickupLocation: {
       type: {
         type: String,
-        enum: ['Point'],
+        enum: ["Point"],
         // required: true,
-        default: 'Point',
+        default: "Point",
       },
       coordinates: {
         type: [Number], // [longitude, latitude]
@@ -48,7 +51,12 @@ const pickupSchema = new mongoose.Schema(
     },
     pickupFlags: {
       type: [String],
-      enum: ['meet_at_police_station', 'customer_negotiating', 'high_risk', 'repeat_seller'],
+      enum: [
+        "meet_at_police_station",
+        "customer_negotiating",
+        "high_risk",
+        "repeat_seller",
+      ],
     },
     quotedPayout: {
       type: Number,
@@ -61,10 +69,12 @@ const pickupSchema = new mongoose.Schema(
     profit: {
       type: Number,
     },
+
+    totalCalculatedPrice: { type: Number, required: true },
     urgency: {
       type: String,
-      enum: ['asap', 'scheduled', 'late'],
-      default: 'asap',
+      enum: ["asap", "scheduled", "late"],
+      default: "asap",
     },
     timeSlot: {
       start: Date,
@@ -72,19 +82,33 @@ const pickupSchema = new mongoose.Schema(
     },
     category: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Category',
+      ref: "Category",
+    },
+
+    userDetails: {
+      name: String,
+      email: String,
+      phone: String,
+      address: String,
+      preferredContact: {
+        type: String,
+        enum: ["email", "phone", "text"],
+        default: "email",
+      },
+      city: String,
+      state: String,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-pickupSchema.index({ pickupLocation: '2dsphere' });
+pickupSchema.index({ pickupLocation: "2dsphere" });
 
-pickupSchema.pre('save', function (next) {
+pickupSchema.pre("save", function (next) {
   if (this.expectedResale != null && this.quotedPayout != null) {
     this.profit = this.expectedResale - this.quotedPayout;
   }
   next();
 });
 
-module.exports = mongoose.model('Pickup', pickupSchema);
+module.exports = mongoose.model("Pickup", pickupSchema);

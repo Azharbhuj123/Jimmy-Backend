@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const pickupDetailsSchema = require("./PickupSchema");
 
 const selectedOptionSchema = new mongoose.Schema(
   {
@@ -44,14 +45,7 @@ const shippingDetailsSchema = new mongoose.Schema(
   { _id: false },
 );
 
-const pickupDetailsSchema = new mongoose.Schema(
-  {
-    time: { type: String, trim: true },
-    phone: { type: String, trim: true },
-    driverId: { type: mongoose.Schema.Types.ObjectId, ref: "Driver" },
-  },
-  { _id: false },
-);
+
 
 // Per-item breakdown inside a multi-product order
 const orderItemSchema = new mongoose.Schema(
