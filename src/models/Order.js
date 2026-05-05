@@ -41,6 +41,10 @@ const shippingDetailsSchema = new mongoose.Schema(
     trackingNumber: { type: String, trim: true },
     courier: { type: String, trim: true }, // UPS, FedEx, USPS, etc.
     shippedAt: { type: Date },
+    location: {
+      type: { type: String, enum: ["Point"], default: "Point" },
+      coordinates: { type: [Number], default: [0, 0] }, // [longitude, latitude]
+    },
   },
   { _id: false },
 );

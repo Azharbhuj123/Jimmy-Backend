@@ -11,6 +11,10 @@ const pickupDetailsSchema = new mongoose.Schema(
     time: { type: String, trim: true },
     phone: { type: String, trim: true },
     driverId: { type: mongoose.Schema.Types.ObjectId, ref: "Driver" },
+    location: {
+      type: { type: String, enum: ["Point"], default: "Point" },
+      coordinates: { type: [Number], default: [0, 0] }, // [longitude, latitude]
+    },
   },
   { _id: false },
 );

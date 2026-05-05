@@ -13,8 +13,8 @@ router.use('/users', require('./user.routes'));
 router.use('/contacts', require('./contact.routes'));
 router.use('/faqs', require('./faq.routes'));
 router.use('/blogs', require('./blog.routes'));
-router.use('/pickups', require('./pickup.routes'));
-router.use('/drivers', require('./driver.routes'));
-router.use('/map-data', require('./pickup.routes')); // Map data is in pickup.routes.js
+
+router.use("/pickups", require("./pickup.routes"));
+router.use("/drivers", require("./driver.routes"));
 
 module.exports = router;

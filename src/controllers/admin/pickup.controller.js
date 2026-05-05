@@ -227,14 +227,20 @@ const getMetrics = asyncHandler(async (req, res) => {
 
 // Map Data
 const getMapData = asyncHandler(async (req, res) => {
-  const [pickups, drivers] = await Promise.all([
-    Pickup.find({ status: { $ne: "completed" } }).select(
-      "status pickupLocation pickupFlags pickupId driverId customerId",
-    ),
-    DriverLocation.find().select("driverId location lastSeen"),
+  const [orders] = await Promise.all([
+    Order.find({
+      fulfillmentType: "pickup",
+      status: { $nin: ["cancelled", "paid", "completed"] },
+    }).select("status pickupDetails orderNumber userDetails"),
   ]);
 
-  ApiResponse.success(res, { pickups, drivers }, "Map data retrieved");
+  // Transform orders to match what the frontend expects if necessary,
+  // or just pass them as 'pickups'
+  ApiResponse.success(
+    res,
+    { pickups: orders, drivers: [] },
+    "Map data retrieved",
+  );
 });
 
 module.exports = {
