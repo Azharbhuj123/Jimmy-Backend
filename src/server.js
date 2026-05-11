@@ -51,6 +51,8 @@ const startServer = async () => {
           },
           { upsert: true, new: true }
         );
+        console.log("driver location saved", driverId, coordinates);
+
         // Optionally broadcast driver location to admins
         io.emit('driver:location:update', { driverId, coordinates });
       } catch (err) {

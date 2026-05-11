@@ -227,18 +227,47 @@ const getMetrics = asyncHandler(async (req, res) => {
 
 // Map Data
 const getMapData = asyncHandler(async (req, res) => {
-  const [orders] = await Promise.all([
+  const [assignedPickups, unassignedOrders, activeDrivers] = await Promise.all([
+    Pickup.find({
+      status: { $in: ["assigned", "en_route", "arrived", "picked_up"] },
+    })
+    .populate('orderId', 'orderNumber')
+    .populate('customerId', 'name phone email'),
+
     Order.find({
       fulfillmentType: "pickup",
-      status: { $nin: ["cancelled", "paid", "completed"] },
+      status: "confirmed"
     }).select("status pickupDetails orderNumber userDetails"),
+
+    DriverLocation.find().populate('driverId', 'name phone'),
   ]);
 
-  // Transform orders to match what the frontend expects if necessary,
-  // or just pass them as 'pickups'
+  // Combine into a single list of map items
+  const pickups = [
+    ...assignedPickups,
+    ...unassignedOrders.map(o => ({
+      _id: o._id,
+      pickupId: o.orderNumber,
+      status: "unassigned",
+      pickupLocation: o.pickupDetails?.location,
+      pickupAddress: o.pickupDetails?.addressLine1,
+      orderId: { orderNumber: o.orderNumber },
+      pickupDetails: o.pickupDetails,
+      isOrder: true
+    }))
+  ];
+
+  // Transform drivers to the format expected by the MapView
+  const transformedDrivers = activeDrivers.map(dl => ({
+    driverId: dl.driverId?._id || dl.driverId,
+    driverName: dl.driverId?.name || "Active Driver",
+    location: dl.location,
+    lastSeen: dl.lastSeen,
+  }));
+
   ApiResponse.success(
     res,
-    { pickups: orders, drivers: [] },
+    { pickups, drivers: transformedDrivers },
     "Map data retrieved",
   );
 });

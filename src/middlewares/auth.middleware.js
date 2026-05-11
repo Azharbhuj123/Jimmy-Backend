@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Driver = require('../models/Driver');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -39,6 +40,42 @@ const verifyToken = asyncHandler(async (req, res, next) => {
   }
 });
 
+const verifyDriverToken = asyncHandler(async (req, res, next) => {
+  let token;
+
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+
+  if (!token) {
+    throw new ApiError(401, 'Access denied. No token provided.');
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const driver = await Driver.findById(decoded.id).select('+isActive');
+
+    if (!driver) {
+      throw new ApiError(401, 'Token is invalid — driver not found.');
+    }
+
+    if (!driver.isActive) {
+      throw new ApiError(403, 'Your account has been deactivated.');
+    }
+
+    req.driver = driver;
+    next();
+  } catch (err) {
+    if (err.name === 'JsonWebTokenError') {
+      throw new ApiError(401, 'Invalid token.');
+    }
+    if (err.name === 'TokenExpiredError') {
+      throw new ApiError(401, 'Token has expired.');
+    }
+    throw err;
+  }
+});
+
 const optionalToken = asyncHandler(async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
     verifyToken(req, res, next);
@@ -66,5 +103,4 @@ const isUser = asyncHandler(async (req, res, next) => {
 
 
 
-module.exports = { verifyToken, isAdmin, isUser,optionalToken };
- 
+module.exports = { verifyToken, verifyDriverToken, isAdmin, isUser,optionalToken };

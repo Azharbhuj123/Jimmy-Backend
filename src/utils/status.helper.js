@@ -1,7 +1,10 @@
 const allowedTransitions = {
   unassigned: ['assigned', 'failed'],
   assigned: ['en_route', 'unassigned', 'failed'],
-  en_route: ['completed', 'failed', 'unassigned'],
+  en_route: ['arrived', 'picked_up', 'failed', 'unassigned'],
+  arrived: ['picked_up', 'failed', 'en_route'],
+  picked_up: ['delivered', 'failed'],
+  delivered: ['completed', 'failed'],
   completed: [],
   failed: [],
 };

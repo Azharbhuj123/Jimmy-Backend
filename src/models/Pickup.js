@@ -27,7 +27,7 @@ const pickupSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["unassigned", "assigned", "en_route", "completed", "failed"],
+      enum: ["unassigned", "assigned", "en_route", "arrived", "picked_up", "delivered", "completed", "failed"],
       default: "unassigned",
     },
     pickupLocation: {
