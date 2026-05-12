@@ -7,6 +7,7 @@ router.get('/popular-products', ctrl.getMostPopularProducts);
 router.get('/popular-products-name', ctrl.getMostPopularProductsName);
 router.get('/popular-categories', ctrl.getMostPopularCategories);
 router.get('/slug/:slug', ctrl.getProductBySlug);
+router.get('/group/:slug', ctrl.getGroupedProductBySlug);
 router.get('/:id', ctrl.getProduct);
 
 module.exports = router;

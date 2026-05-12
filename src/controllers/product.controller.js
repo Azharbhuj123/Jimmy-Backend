@@ -1,7 +1,9 @@
+const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const ApiResponse = require("../utils/ApiResponse");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
+
 const {
   getPaginationOptions,
   buildPaginationMeta,
@@ -49,7 +51,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
   // Filter by Brand ID (Direct match)
   if (brandId && brandId !== "undefined") {
-    query.brandId = brandId;
+    query.brandId = new mongoose.Types.ObjectId(brandId);
   }
 
   /**
@@ -77,20 +79,42 @@ const getProducts = asyncHandler(async (req, res) => {
   const popularIds = popularProducts.map((p) => p._id.toString());
 
   /**
-   * 3. EXECUTE MAIN QUERY
+   * 3. EXECUTE MAIN QUERY WITH UNIQUE GROUPING
    */
-  const total = await Product.countDocuments(query);
-  const products = await Product.find(query)
-    .populate("brandId", "name")
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(parseInt(limit))
-    .lean();
+  // Calculate total unique products (grouped by name and brandId)
+  const totalResult = await Product.aggregate([
+    { $match: query },
+    { $group: { _id: { name: "$name", brandId: "$brandId" } } },
+    { $count: "total" },
+  ]);
+  const total = totalResult[0]?.total || 0;
+
+  // Fetch unique products with representation
+  const products = await Product.aggregate([
+    { $match: query },
+    { $sort: { createdAt: -1 } },
+    {
+      $group: {
+        _id: { name: "$name", brandId: "$brandId" },
+        doc: { $first: "$$ROOT" },
+      },
+    },
+    { $replaceRoot: { newRoot: "$doc" } },
+    { $sort: { createdAt: -1 } },
+    { $skip: skip },
+    { $limit: parseInt(limit) },
+  ]);
+
+  // Populate brand info for aggregation results
+  const populatedProducts = await Product.populate(products, {
+    path: "brandId",
+    select: "name",
+  });
 
   /**
    * 4. MAP BADGES
    */
-  const productsWithBadges = products.map((product) => {
+  const productsWithBadges = populatedProducts.map((product) => {
     const badges = [];
     const idStr = product._id.toString();
 
@@ -189,6 +213,15 @@ const searchProducts = asyncHandler(async (req, res) => {
         },
       },
 
+      // Collapse variants into unique base models
+      {
+        $group: {
+          _id: { name: "$name", brandId: "$brandId" },
+          doc: { $first: "$$ROOT" },
+        },
+      },
+      { $replaceRoot: { newRoot: "$doc" } },
+
       // Use $facet for count + paginated data in a single query
       {
         $facet: {
@@ -251,18 +284,39 @@ const searchProducts = asyncHandler(async (req, res) => {
 });
 
 const getMostPopularProducts = asyncHandler(async (req, res) => {
-  // 1. Fetch top 4 products sorted by totalOrders
-  // We filter by isActive: true to ensure we don't show disabled products
-  const products = await Product.find({ isActive: true })
-    .select("name basePrice badges images")
-    .sort({ totalOrders: -1 })
-    .limit(4)
-    .populate("brandId", "name") // Optional: includes brand name
-    .lean();
+  // Fetch top 4 unique products sorted by totalOrders
+  const products = await Product.aggregate([
+    { $match: { isActive: true } },
+    { $sort: { totalOrders: -1 } },
+    {
+      $group: {
+        _id: { name: "$name", brandId: "$brandId" },
+        doc: { $first: "$$ROOT" },
+      },
+    },
+    { $replaceRoot: { newRoot: "$doc" } },
+    { $sort: { totalOrders: -1 } },
+    { $limit: 4 },
+    {
+      $project: {
+        name: 1,
+        basePrice: 1,
+        badges: 1,
+        images: 1,
+        brandId: 1,
+      },
+    },
+  ]);
+
+  // Populate brand info
+  const populatedProducts = await Product.populate(products, {
+    path: "brandId",
+    select: "name",
+  });
 
   // 2. Add the "Most Popular" badge manually to each
   // since this specific API is dedicated to them
-  const productsWithBadges = products.map((product) => ({
+  const productsWithBadges = populatedProducts.map((product) => ({
     ...product,
     badges: ["Most Popular"],
   }));
@@ -328,10 +382,18 @@ const getMostPopularCategories = asyncHandler(async (req, res) => {
 });
 
 const getMostPopularProductsName = asyncHandler(async (req, res) => {
-  const products = await Product.find({ isActive: true })
-    .select("name")
-    .sort({ totalOrders: -1 })
-    .lean();
+  const products = await Product.aggregate([
+    { $match: { isActive: true } },
+    { $sort: { totalOrders: -1 } },
+    {
+      $group: {
+        _id: { name: "$name", brandId: "$brandId" },
+        name: { $first: "$name" },
+      },
+    },
+    { $project: { _id: 0, name: 1 } },
+    { $sort: { name: 1 } },
+  ]);
 
   return ApiResponse.success(
     res,
@@ -358,11 +420,50 @@ const getProductBySlug = asyncHandler(async (req, res) => {
   ApiResponse.success(res, { product });
 });
 
+const getGroupedProductBySlug = asyncHandler(async (req, res) => {
+  const { slug } = req.params;
+
+  // 1. Find the reference product by slug to get the base name
+  const referenceProduct = await Product.findOne({ _id: slug, isActive: true }).populate("brandId", "name slug logo");
+  if (!referenceProduct) throw new ApiError(404, "Product not found");
+
+  // 2. Find all products with the same base name
+  const allVariants = await Product.find({
+    name: referenceProduct.name,
+    brandId: referenceProduct.brandId,
+    isActive: true,
+  }).lean();
+
+  // 3. Extract and sort unique storage options
+  const storageOptions = [...new Set(allVariants.map((p) => p.storage))]
+    .filter(Boolean)
+    .sort((a, b) => {
+      const getVal = (s) => {
+        const num = parseInt(s);
+        return s.toLowerCase().includes("tb") ? num * 1024 : num;
+      };
+      return getVal(a) - getVal(b);
+    });
+
+  // 4. Send response
+  return ApiResponse.success(
+    res,
+    {
+      name: referenceProduct.name,
+      storageOptions,
+      products: allVariants,
+      referenceProduct,
+    },
+    "Grouped products fetched successfully",
+  );
+});
+
 module.exports = {
   getProducts,
   getProduct,
   searchProducts,
   getProductBySlug,
+  getGroupedProductBySlug,
   getMostPopularProducts,
   getMostPopularCategories,
   getMostPopularProductsName,
