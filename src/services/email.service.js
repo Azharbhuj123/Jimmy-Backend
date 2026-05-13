@@ -231,6 +231,7 @@ const sendPaymentSentEmail = async (order, user) => {
     apple_pay: "Apple Pay",
     venmo: "Venmo",
     check: "Check",
+    "Direct Deposit": "Direct Deposit",
   };
 
   const recipientEmail = user?.email || order?.guest_email;

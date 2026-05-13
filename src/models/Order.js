@@ -117,7 +117,7 @@ const orderSchema = new mongoose.Schema(
     // ── Payment (admin sends manually) ───────────────────────────────────────
     paymentMethod: {
       type: String,
-      enum: ["zelle", "paypal", "check"],
+      enum: ["zelle", "paypal", "check", "Direct Deposit"],
     },
     paymentStatus: {
       type: String,

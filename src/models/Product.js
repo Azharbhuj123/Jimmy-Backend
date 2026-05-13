@@ -140,11 +140,28 @@ productSchema.index({
 });
 
 productSchema.pre("save", function (next) {
-  if (this.isModified("name") || this.isModified("storage") || this.isModified("carrier")) {
-    const namePart = this.name.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, "");
-    const storagePart = this.storage ? this.storage.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, "") : "";
-    const carrierPart = this.carrier ? this.carrier.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, "") : "";
-    
+  if (
+    this.isModified("name") ||
+    this.isModified("storage") ||
+    this.isModified("carrier")
+  ) {
+    const namePart = this.name
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^\w-]/g, "");
+    const storagePart = this.storage
+      ? this.storage
+          .toLowerCase()
+          .replace(/\s+/g, "-")
+          .replace(/[^\w-]/g, "")
+      : "";
+    const carrierPart = this.carrier
+      ? this.carrier
+          .toLowerCase()
+          .replace(/\s+/g, "-")
+          .replace(/[^\w-]/g, "")
+      : "";
+
     this.slug = [namePart, storagePart, carrierPart].filter(Boolean).join("-");
   }
   next();

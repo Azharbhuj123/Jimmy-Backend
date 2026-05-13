@@ -185,7 +185,7 @@ const updateShipping = asyncHandler(async (req, res) => {
 const markPaymentSent = asyncHandler(async (req, res) => {
   const { paymentMethod, transactionId } = req.body;
 
-  const validMethods = ["zelle", "paypal", "apple_pay", "venmo", "check"];
+  const validMethods = ["zelle", "paypal", "apple_pay", "venmo", "check", "Direct Deposit"];
   if (!validMethods.includes(paymentMethod)) {
     throw new ApiError(
       400,

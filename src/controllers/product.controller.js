@@ -424,7 +424,10 @@ const getGroupedProductBySlug = asyncHandler(async (req, res) => {
   const { slug } = req.params;
 
   // 1. Find the reference product by slug to get the base name
-  const referenceProduct = await Product.findOne({ _id: slug, isActive: true }).populate("brandId", "name slug logo");
+  const referenceProduct = await Product.findOne({
+    _id: slug,
+    isActive: true,
+  }).populate("brandId", "name slug logo");
   if (!referenceProduct) throw new ApiError(404, "Product not found");
 
   // 2. Find all products with the same base name
