@@ -531,6 +531,24 @@ const sendDriverWelcomeEmail = async (driver, plainPassword) => {
         </div>
       </div>
 
+      <div style="text-align:center;margin-top:28px;">
+  <a
+    href="${process.env.APK_LINK}"
+    style="
+      background:#1a1a2e;
+      color:#fff;
+      text-decoration:none;
+      padding:14px 28px;
+      border-radius:8px;
+      display:inline-block;
+      font-weight:bold;
+      font-size:16px;
+    "
+  >
+    📲 Download Driver App
+  </a>
+</div>
+
      
 
       <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px 18px;margin-top:16px;">
