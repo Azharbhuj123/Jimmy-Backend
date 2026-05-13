@@ -74,7 +74,7 @@ const getOrders = asyncHandler(async (req, res) => {
 const getOrder = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id)
     .populate("userId", "name email phone")
-    .populate("items.productId", "name basePrice steps")
+    .populate("items.productId", "name basePrice steps storage carrier")
     .populate("pickupDetails.driverId", "name phone");
   if (!order) throw new ApiError(404, "Order not found");
   ApiResponse.success(res, { order });
@@ -131,7 +131,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     // Send email notification (non-blocking)
     const user = await User.findById(order.userId);
     if (user || order?.guest_email)
-      sendStatusUpdateEmail(order, user, note).catch(() => {});
+      sendStatusUpdateEmail(order, user, note).catch(() => { });
   }
 
   ApiResponse.success(res, { order }, `Order status updated to "${status}"`);
@@ -174,7 +174,7 @@ const updateShipping = asyncHandler(async (req, res) => {
   // Email user with label link (non-blocking)
   const user = await User.findById(order.userId);
   if (user || order?.guest_email) {
-    sendShippingLabelEmail(order, user).catch(() => {});
+    sendShippingLabelEmail(order, user).catch(() => { });
   }
 
   ApiResponse.success(res, { order }, "Shipping label saved and user notified");
@@ -221,7 +221,7 @@ const markPaymentSent = asyncHandler(async (req, res) => {
   // Notify user (non-blocking)
   const user = await User.findById(order.userId);
   if (user || order?.guest_email)
-    sendPaymentSentEmail(order, user).catch(() => {});
+    sendPaymentSentEmail(order, user).catch(() => { });
 
   ApiResponse.success(
     res,
