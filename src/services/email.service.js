@@ -127,11 +127,16 @@ const sendShippingLabelEmail = async (order, user) => {
         infoRow("Courier", shippingDetails.courier || "—"),
         infoRow("Tracking Number", shippingDetails.trackingNumber || "—"),
       ])}
-      <div style="margin:20px 0;text-align:center;">
-        <a href="${shippingDetails.labelUrl}" style="display:inline-block;background:#1a1a2e;color:#fff;padding:14px 28px;text-decoration:none;border-radius:6px;font-size:15px;">
-          📦 Download Shipping Label
-        </a>
-      </div>
+      ${shippingDetails.labelUrl ? `
+  <div style="margin:20px 0;text-align:center;">
+    <a
+      href="${shippingDetails.labelUrl}"
+      style="display:inline-block;background:#1a1a2e;color:#fff;padding:14px 28px;text-decoration:none;border-radius:6px;font-size:15px;"
+    >
+      📦 Download Shipping Label
+    </a>
+  </div>
+` : ""}
       <h4>Shipping Instructions:</h4>
       <ol style="color:#555;font-size:14px;line-height:1.8;">
         <li>Print the label and attach it securely to your package.</li>
@@ -231,7 +236,6 @@ const sendPaymentSentEmail = async (order, user) => {
     apple_pay: "Apple Pay",
     venmo: "Venmo",
     check: "Check",
-    "Direct Deposit": "Direct Deposit",
   };
 
   const recipientEmail = user?.email || order?.guest_email;

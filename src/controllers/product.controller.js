@@ -92,15 +92,16 @@ const getProducts = asyncHandler(async (req, res) => {
   // Fetch unique products with representation
   const products = await Product.aggregate([
     { $match: query },
-    { $sort: { createdAt: -1 } },
+    { $sort: { displayOrder: 1 } },
     {
       $group: {
         _id: { name: "$name", brandId: "$brandId" },
         doc: { $first: "$$ROOT" },
+        minDisplayOrder: { $min: "$displayOrder" },
       },
     },
-    { $replaceRoot: { newRoot: "$doc" } },
-    { $sort: { createdAt: -1 } },
+    { $replaceRoot: { newRoot: { $mergeObjects: ["$doc", { _groupOrder: "$minDisplayOrder" }] } } },
+    { $sort: { _groupOrder: 1 } },
     { $skip: skip },
     { $limit: parseInt(limit) },
   ]);
@@ -123,6 +124,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
     return { ...product, badges };
   });
+  console.log("productsWithBadges");
 
   /**
    * 5. SEND RESPONSE

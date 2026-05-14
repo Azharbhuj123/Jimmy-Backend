@@ -49,8 +49,6 @@ const shippingDetailsSchema = new mongoose.Schema(
   { _id: false },
 );
 
-
-
 // Per-item breakdown inside a multi-product order
 const orderItemSchema = new mongoose.Schema(
   {
@@ -60,10 +58,13 @@ const orderItemSchema = new mongoose.Schema(
       required: true,
     },
     productName: { type: String },
+    storage: { type: String },
+    carrier: { type: String },
     selectedOptions: [selectedOptionSchema],
     basePrice: { type: Number, required: true },
     calculatedPrice: { type: Number, required: true },
     priceBreakdown: { type: mongoose.Schema.Types.Mixed },
+
   },
   { _id: true },
 );
@@ -145,6 +146,7 @@ const orderSchema = new mongoose.Schema(
     notes: { type: String, trim: true },
     internalNotes: { type: String, trim: true },
     flags: [{ type: String, trim: true }],
+    isManual: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

@@ -1,28 +1,28 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
 const driverSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Driver name is required'],
+      required: [true, "Driver name is required"],
       trim: true,
     },
     phone: {
       type: String,
-      required: [true, 'Phone is required'],
+      required: [true, "Phone is required"],
       trim: true,
     },
     email: {
       type: String,
       lowercase: true,
       trim: true,
-      required: [true, 'Email is required'],
+      required: [true, "Email is required"],
       unique: true,
     },
     password: {
       type: String,
-      trim: true, 
+      trim: true,
       select: false,
     },
     isActive: {
@@ -42,11 +42,11 @@ const driverSchema = new mongoose.Schema(
       select: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-driverSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+driverSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
@@ -55,4 +55,4 @@ driverSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-module.exports = mongoose.model('Driver', driverSchema);
+module.exports = mongoose.model("Driver", driverSchema);

@@ -50,10 +50,13 @@ const createOrder = asyncHandler(async (req, res) => {
   const orderItems = priceResult.items.map((r) => ({
     productId: r.productId,
     productName: r.productName,
+    storage: r.storage,
+    carrier: r.carrier,
     selectedOptions: r.enrichedOptions,
     basePrice: r.basePrice,
     calculatedPrice: r.calculatedPrice,
     priceBreakdown: r.priceBreakdown,
+
   }));
 
   let userDetails = {

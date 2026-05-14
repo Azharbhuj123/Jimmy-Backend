@@ -12,7 +12,10 @@ const {
   sendStatusUpdateEmail,
   sendShippingLabelEmail,
   sendPaymentSentEmail,
+  sendOrderCreatedEmail,
 } = require("../../services/email.service");
+const { calculateMultiPrice } = require("../../services/pricing.service");
+const pickupService = require("../../services/pickup.service");
 
 const VALID_STATUSES = [
   "pending",
@@ -23,8 +26,115 @@ const VALID_STATUSES = [
   "inspected",
   "ready_to_pay",
   "paid",
+  "paid",
   "cancelled",
 ];
+
+// POST /admin/orders
+const createOrder = asyncHandler(async (req, res) => {
+  const {
+    items,
+    fulfillmentType,
+    shippingDetails,
+    pickupDetails,
+    notes,
+    guest_email,
+    preferredContact,
+    paymentMethod,
+    status,
+    driverId,
+  } = req.body;
+
+  if (!Array.isArray(items) || !items.length) {
+    throw new ApiError(400, "items must be a non-empty array");
+  }
+
+  // Calculate prices for all items
+  const priceResult = await calculateMultiPrice(items, fulfillmentType);
+
+  // Build order items
+  const orderItems = priceResult.items.map((r) => ({
+    productId: r.productId,
+    productName: r.productName,
+    storage: r.storage,
+    carrier: r.carrier,
+    selectedOptions: r.enrichedOptions,
+    basePrice: r.basePrice,
+    calculatedPrice: r.calculatedPrice,
+    priceBreakdown: r.priceBreakdown,
+  }));
+
+  let userDetails = {
+    name: shippingDetails?.name || pickupDetails?.name || "Third Party User",
+    email: guest_email || "",
+    phone:
+      fulfillmentType === "shipping"
+        ? shippingDetails?.phone
+        : pickupDetails?.phone || "",
+    preferredContact: preferredContact || "email",
+    city: shippingDetails?.city || "",
+    state: shippingDetails?.state || "",
+  };
+
+  const order = await Order.create({
+    userId: null, // Admin created, no user id unless linked
+    guest_email: guest_email || "",
+    items: orderItems,
+    totalBasePrice: priceResult.totalBasePrice,
+    totalCalculatedPrice: priceResult.totalCalculatedPrice,
+    fulfillmentType: fulfillmentType || "shipping",
+    shippingDetails:
+      fulfillmentType === "shipping" ? shippingDetails : undefined,
+    pickupDetails: fulfillmentType === "pickup" ? pickupDetails : undefined,
+    notes,
+    userDetails,
+    paymentMethod,
+    status: status || "pending",
+    isManual: true,
+    statusHistory: [
+      { status: status || "pending", note: "Order placed manually by Admin" },
+    ],
+  });
+
+  let pickup = null;
+  // If order is pickup, create pickup record
+  if (fulfillmentType === "pickup") {
+    pickup = await pickupService.createPickupFromOrder(order, userDetails);
+    if (driverId) {
+      await pickupService.assignDriverToPickup(
+        pickup._id,
+        driverId,
+        {
+          date: pickupDetails?.pickupDate,
+          timeSlot: pickupDetails?.time,
+          notes: notes,
+        },
+        req.app.io,
+      );
+    }
+  }
+
+  // Increment totalOrders on each product (non-blocking)
+  const productIds = [
+    ...new Set(orderItems.map((i) => i.productId.toString())),
+  ];
+  Product.updateMany(
+    { _id: { $in: productIds } },
+    { $inc: { totalOrders: 1 } },
+  ).catch(() => {});
+
+  // Send confirmation email (non-blocking)
+  if (guest_email) {
+    sendOrderCreatedEmail(order, null).catch(() => {});
+  }
+
+  ApiResponse.success(
+    res,
+    { order, pickup },
+    "Order created successfully",
+    201,
+  );
+});
 
 // GET /admin/orders
 const getOrders = asyncHandler(async (req, res) => {
@@ -37,9 +147,13 @@ const getOrders = asyncHandler(async (req, res) => {
     endDate,
     fulfillmentType,
     paymentStatus,
+    isManual,
   } = req.query;
 
-  const filter = { fulfillmentType: "shipping" };
+  const filter = {};
+  if (isManual === "true") filter.isManual = true;
+  else if (isManual === "false") filter.isManual = false;
+
   if (status) filter.status = status;
   if (userId) filter.userId = userId;
   if (fulfillmentType) filter.fulfillmentType = fulfillmentType;
@@ -131,7 +245,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     // Send email notification (non-blocking)
     const user = await User.findById(order.userId);
     if (user || order?.guest_email)
-      sendStatusUpdateEmail(order, user, note).catch(() => { });
+      sendStatusUpdateEmail(order, user, note).catch(() => {});
   }
 
   ApiResponse.success(res, { order }, `Order status updated to "${status}"`);
@@ -142,11 +256,8 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 const updateShipping = asyncHandler(async (req, res) => {
   const { labelUrl, trackingNumber, courier } = req.body;
 
-  if (!labelUrl || !trackingNumber || !courier) {
-    throw new ApiError(
-      400,
-      "labelUrl, trackingNumber, and courier are required",
-    );
+  if (!trackingNumber || !courier) {
+    throw new ApiError(400, "trackingNumber, and courier are required");
   }
 
   const order = await Order.findById(req.params.id);
@@ -156,7 +267,7 @@ const updateShipping = asyncHandler(async (req, res) => {
     ...((order.shippingDetails || {}).toObject
       ? order.shippingDetails.toObject()
       : order.shippingDetails || {}),
-    labelUrl,
+    labelUrl: labelUrl || "",
     trackingNumber,
     courier,
   };
@@ -174,7 +285,7 @@ const updateShipping = asyncHandler(async (req, res) => {
   // Email user with label link (non-blocking)
   const user = await User.findById(order.userId);
   if (user || order?.guest_email) {
-    sendShippingLabelEmail(order, user).catch(() => { });
+    sendShippingLabelEmail(order, user).catch(() => {});
   }
 
   ApiResponse.success(res, { order }, "Shipping label saved and user notified");
@@ -185,7 +296,7 @@ const updateShipping = asyncHandler(async (req, res) => {
 const markPaymentSent = asyncHandler(async (req, res) => {
   const { paymentMethod, transactionId } = req.body;
 
-  const validMethods = ["zelle", "paypal", "apple_pay", "venmo", "check", "Direct Deposit"];
+  const validMethods = ["zelle", "paypal", "apple_pay", "venmo", "check"];
   if (!validMethods.includes(paymentMethod)) {
     throw new ApiError(
       400,
@@ -221,7 +332,7 @@ const markPaymentSent = asyncHandler(async (req, res) => {
   // Notify user (non-blocking)
   const user = await User.findById(order.userId);
   if (user || order?.guest_email)
-    sendPaymentSentEmail(order, user).catch(() => { });
+    sendPaymentSentEmail(order, user).catch(() => {});
 
   ApiResponse.success(
     res,
@@ -244,6 +355,7 @@ const updateInternalDetails = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  createOrder,
   getOrders,
   getOrder,
   updateOrderStatus,

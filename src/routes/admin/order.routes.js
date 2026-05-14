@@ -4,6 +4,7 @@ const ctrl = require('../../controllers/admin/order.controller');
 const validate = require('../../middlewares/validate.middleware');
 
 router.get('/', ctrl.getOrders);
+router.post('/', ctrl.createOrder);
 router.get('/:id', ctrl.getOrder);
 
 router.put(
@@ -16,7 +17,7 @@ router.put(
 router.put(
   '/:id/shipping',
   [
-    body('labelUrl').notEmpty().withMessage('labelUrl is required'),
+    body('labelUrl').optional(),
     body('trackingNumber').notEmpty().withMessage('trackingNumber is required'),
     body('courier').notEmpty().withMessage('courier is required'),
   ],

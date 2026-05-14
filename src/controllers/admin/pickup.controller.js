@@ -17,6 +17,8 @@ const {
 } = require("../../services/email.service");
 const { isStatusTransitionAllowed } = require("../../utils/status.helper");
 const { v4: uuidv4 } = require("uuid");
+const pickupService = require("../../services/pickup.service");
+
 
 // Create a pickup from an order
 const createPickup = asyncHandler(async (req, res) => {
@@ -107,60 +109,18 @@ const updatePickupStatus = asyncHandler(async (req, res) => {
 const assignDriver = asyncHandler(async (req, res) => {
   const { driverId, date, timeSlot, notes } = req.body;
 
-  const pickup = await Pickup.findById(req.params.id)
-    .populate("orderId", "orderNumber totalCalculatedPrice items")
-    .populate("customerId", "name email");
+  const pickup = await pickupService.assignDriverToPickup(
+    req.params.id,
+    driverId,
+    { date, timeSlot, notes },
+    req.app.io
+  );
+
   if (!pickup) throw new ApiError(404, "Pickup not found");
-
-  const driver = await Driver.findById(driverId);
-  if (!driver) throw new ApiError(404, "Driver not found");
-
-  // Update driver assignment
-  pickup.driverId = driverId;
-  pickup.status = "assigned";
-
-  // Persist schedule details into pickupDetails sub-doc
-  if (!pickup.pickupDetails) pickup.pickupDetails = {};
-  if (date) pickup.pickupDetails.pickupDate = new Date(date);
-  if (timeSlot) pickup.pickupDetails.time = timeSlot;
-  if (notes) pickup.pickupNotes = notes;
-  // Also store driverId inside the embedded pickupDetails (used by frontend display)
-  pickup.pickupDetails.driverId = driverId;
-
-  pickup.markModified("pickupDetails");
-  await pickup.save();
-
-  // ── Emit realtime event ────────────────────────────────────────
-  if (req.app.io) {
-    req.app.io.emit("pickup:updated", pickup);
-  }
-
-  // ── Email driver (non-blocking) ────────────────────────────────
-  if (driver.email) {
-    sendDriverAssignmentEmail(driver, pickup).catch(() => {});
-  }
-
-  // ── Email customer (non-blocking) ─────────────────────────────
-  const customerEmail = pickup.userDetails?.email || pickup.guest_email;
-  if (customerEmail) {
-    sendPickupScheduledEmail(
-      {
-        orderNumber: pickup.orderId?.orderNumber || pickup.pickupId,
-        pickupDetails: {
-          date: date || null,
-          timeSlot: timeSlot || null,
-          address: pickup.pickupAddress,
-          notes: notes || null,
-        },
-        userDetails: pickup.userDetails,
-        guest_email: pickup.guest_email,
-      },
-      pickup.customerId,
-    ).catch(() => {});
-  }
 
   ApiResponse.success(res, { pickup }, "Driver assigned successfully");
 });
+
 
 // Auto-assign nearest available driver
 const autoAssignDriver = asyncHandler(async (req, res) => {

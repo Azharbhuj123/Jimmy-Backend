@@ -18,7 +18,9 @@ const calculatePrice = async (
   productId,
   selectedOptionsArr = [],
   isLocalPickup = false,
+  extraDetails = {},
 ) => {
+
   const product = await Product.findById(productId);
   if (!product) throw new ApiError(404, "Product not found");
   if (!product.isActive) throw new ApiError(400, "Product is not available");
@@ -121,8 +123,10 @@ const calculatePrice = async (
     productName: product.name,
     productImage: product.images,
     productId: product._id,
+    ...extraDetails,
   };
 };
+
 
 /**
  * Calculate prices for multiple products at once.
@@ -139,10 +143,14 @@ const calculateMultiPrice = async (
   const isLocalPickup = fulfillmentType === "pickup";
 
   const results = await Promise.all(
-    items.map(({ productId, selectedOptions }) =>
-      calculatePrice(productId, selectedOptions, isLocalPickup),
+    items.map(({ productId, selectedOptions, storage, carrier }) =>
+      calculatePrice(productId, selectedOptions, isLocalPickup, {
+        storage,
+        carrier,
+      }),
     ),
-  );
+);
+
 
   const totalBasePrice = results.reduce((sum, r) => sum + r.basePrice, 0);
   const totalCalculatedPrice = results.reduce(
