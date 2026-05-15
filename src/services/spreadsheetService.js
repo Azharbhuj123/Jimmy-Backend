@@ -2,10 +2,25 @@ const { google } = require("googleapis");
 const path = require("path");
 const Product = require("../models/Product");
 
-const auth = new google.auth.GoogleAuth({
-  keyFile: path.join(__dirname, "../credentials.json"),
+const authOptions = {
   scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-});
+};
+
+if (process.env.GOOGLE_CREDENTIALS) {
+  try {
+    authOptions.credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    console.log("ℹ️ Using Google credentials from Environment Variable");
+  } catch (err) {
+    console.error(
+      "❌ Error parsing GOOGLE_CREDENTIALS env var. Falling back to file.",
+    );
+    authOptions.keyFile = path.join(__dirname, "../credentials.json");
+  }
+} else {
+  authOptions.keyFile = path.join(__dirname, "../credentials.json");
+}
+
+const auth = new google.auth.GoogleAuth(authOptions);
 
 const sheets = google.sheets({ version: "v4", auth });
 
