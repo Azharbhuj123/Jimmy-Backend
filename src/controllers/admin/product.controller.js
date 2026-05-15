@@ -4,6 +4,12 @@ const ApiError = require('../../utils/ApiError');
 const asyncHandler = require('../../utils/asyncHandler');
 const { getPaginationOptions, buildPaginationMeta } = require('../../utils/pagination');
 const { getProductAnalytics } = require('../../services/pricing.service');
+const { syncSpreadsheetData } = require('../../services/spreadsheetService');
+
+const syncSpreadsheet = asyncHandler(async (req, res) => {
+  await syncSpreadsheetData();
+  ApiResponse.success(res, {}, 'Spreadsheet sync completed successfully');
+});
 
 const createProduct = asyncHandler(async (req, res) => {
   const product = await Product.create(req.body);
@@ -143,4 +149,5 @@ module.exports = {
   getAnalytics,
   duplicateProduct,
   bulkUpdateProducts,
+  syncSpreadsheet,
 };

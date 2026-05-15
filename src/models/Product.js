@@ -73,8 +73,14 @@ const productSchema = new mongoose.Schema(
     },
     basePrice: {
       type: Number,
-      required: [true, "Base price is required"],
+      required: [
+        function () {
+          return this.pricingType !== "matrix";
+        },
+        "Base price is required",
+      ],
       min: [0, "Base price cannot be negative"],
+      default: 0,
     },
     avgResaleValue: {
       type: Number,
@@ -85,17 +91,6 @@ const productSchema = new mongoose.Schema(
       type: String,
       enum: ["dynamic", "matrix"],
       default: "dynamic",
-    },
-    basePrice: {
-      type: Number,
-      required: [
-        function () {
-          return this.pricingType !== "matrix";
-        },
-        "Base price is required",
-      ],
-      min: [0, "Base price cannot be negative"],
-      default: 0,
     },
     pricingMatrix: [
       {
