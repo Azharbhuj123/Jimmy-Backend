@@ -6,6 +6,11 @@ const authOptions = {
   scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
 };
 
+console.log("🛠️  Credential Debug:", {
+  hasEnvVar: !!process.env.GOOGLE_CREDENTIALS,
+  envVarLength: process.env.GOOGLE_CREDENTIALS?.length || 0,
+});
+
 if (process.env.GOOGLE_CREDENTIALS) {
   try {
     authOptions.credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -17,6 +22,7 @@ if (process.env.GOOGLE_CREDENTIALS) {
     authOptions.keyFile = path.join(__dirname, "../credentials.json");
   }
 } else {
+  console.log("ℹ️ GOOGLE_CREDENTIALS not found in env, using local file.");
   authOptions.keyFile = path.join(__dirname, "../credentials.json");
 }
 
