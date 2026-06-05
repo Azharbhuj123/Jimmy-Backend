@@ -36,12 +36,17 @@ const getProducts = asyncHandler(async (req, res) => {
     // Clean "Sell " prefix if it exists to get core keywords like "iPad" or "Samsung"
     const tabKeyword = activeTab.replace(/sell/i, "").trim();
 
-    andConditions.push({
-      $or: [
-        { name: { $regex: tabKeyword, $options: "i" } },
-        { description: { $regex: tabKeyword, $options: "i" } },
-      ],
-    });
+    if (tabKeyword.toLowerCase() === "smart watch" || tabKeyword.toLowerCase() === "smart watches") {
+      andConditions.push({ deviceType: "apple_watch" });
+    } else {
+      andConditions.push({
+        $or: [
+          { name: { $regex: tabKeyword, $options: "i" } },
+          { description: { $regex: tabKeyword, $options: "i" } },
+          { deviceType: { $regex: tabKeyword, $options: "i" } },
+        ],
+      });
+    }
   }
 
   // Apply combined conditions if any exist
