@@ -4,11 +4,17 @@ const ApiError = require('../../utils/ApiError');
 const asyncHandler = require('../../utils/asyncHandler');
 const { getPaginationOptions, buildPaginationMeta } = require('../../utils/pagination');
 const { getProductAnalytics } = require('../../services/pricing.service');
-const { syncSpreadsheetData } = require('../../services/spreadsheetService');
+const { syncSpreadsheetData, syncSheetByDeviceType } = require('../../services/spreadsheetService');
 
 const syncSpreadsheet = asyncHandler(async (req, res) => {
   await syncSpreadsheetData();
   ApiResponse.success(res, {}, 'Spreadsheet sync completed successfully');
+});
+
+const syncSpreadsheetByType = asyncHandler(async (req, res) => {
+  const { deviceType } = req.params;
+  await syncSheetByDeviceType(deviceType);
+  ApiResponse.success(res, {}, `Sync for ${deviceType} completed`);
 });
 
 const createProduct = asyncHandler(async (req, res) => {
@@ -150,4 +156,5 @@ module.exports = {
   duplicateProduct,
   bulkUpdateProducts,
   syncSpreadsheet,
+  syncSpreadsheetByType,
 };

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const blogSchema = new mongoose.Schema(
   {
@@ -9,7 +9,7 @@ const blogSchema = new mongoose.Schema(
     coverImage: { type: String },
     author: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     tags: [{ type: String, lowercase: true, trim: true }],
@@ -17,17 +17,23 @@ const blogSchema = new mongoose.Schema(
     publishedAt: { type: Date },
     views: { type: Number, default: 0 },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-blogSchema.pre('save', function (next) {
-  if (this.isModified('title')) {
-    this.slug = this.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '') + '-' + Date.now();
+blogSchema.pre("save", function (next) {
+  if (this.isModified("title")) {
+    this.slug =
+      this.title
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^\w-]/g, "") +
+      "-" +
+      Date.now();
   }
-  if (this.isModified('isPublished') && this.isPublished && !this.publishedAt) {
+  if (this.isModified("isPublished") && this.isPublished && !this.publishedAt) {
     this.publishedAt = new Date();
   }
   next();
 });
 
-module.exports = mongoose.model('Blog', blogSchema);
+module.exports = mongoose.model("Blog", blogSchema);

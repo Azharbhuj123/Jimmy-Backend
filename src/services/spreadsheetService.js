@@ -1,6 +1,7 @@
 const { google } = require("googleapis");
 const path = require("path");
 const Product = require("../models/Product");
+const SheetConfig = require("../models/SheetConfig");
 
 const authOptions = {
   scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
@@ -27,168 +28,293 @@ if (process.env.GOOGLE_CREDENTIALS) {
 }
 
 const auth = new google.auth.GoogleAuth(authOptions);
-
 const sheets = google.sheets({ version: "v4", auth });
-
-/**
- * Parses a string like "iPhone 17 Pro Max 256GB Unlocked"
- * into { name, storage, carrier }
- */
-function parseProductName(fullName) {
-  if (!fullName) return null;
-
-  // Normalize spaces and trim
-  const cleanName = fullName.trim().replace(/\s+/g, " ");
-
-  // Look for storage pattern: digits followed by GB or TB (case insensitive)
-  const storageMatch = cleanName.match(/(\d+(?:GB|TB|MB))/i);
-  if (!storageMatch) return null; // If no storage, likely not a product row
-
-  const storage = storageMatch[1];
-
-  // Look for carrier: Unlocked or Locked
-  const carrierMatch = cleanName.match(/(Unlocked|Locked)/i);
-  const carrier = carrierMatch ? carrierMatch[1] : "Unlocked"; // Default to Unlocked if not specified? Or null?
-
-  // Name is everything before the storage
-  const storageIndex = cleanName.indexOf(storage);
-  const name = cleanName.substring(0, storageIndex).trim();
-
-  // If name is empty or just special characters, it's not a valid product
-  if (!name || name.length < 2) return null;
-
-  return { name, storage, carrier };
-}
 
 /**
  * Converts currency string "$1,234.56" to number 1234.56
  */
 function parsePrice(priceStr) {
   if (!priceStr) return 0;
-  return parseFloat(priceStr.replace(/[$,\s]/g, "")) || 0;
+  return parseFloat(String(priceStr).replace(/[$,\s]/g, "")) || 0;
 }
 
-async function syncSpreadsheetData() {
-  try {
-    const spreadsheetId = "1w_l4I-HhbvnvC1R3EGu_YaW-K1F9NZBvf7vOJDgHPYA";
-    const range = "Sheet1!A2:V323"; // Fetching all relevant columns
+function escapeRegex(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
+/**
+ * NEW: Generic model parser
+ */
+function parseModelFromRow(row, config, lastSeenModelName = "") {
+  let rawName = (row[config.modelColumn] || "").trim();
+  
+  if (!rawName) {
+    rawName = lastSeenModelName;
+  }
+
+  if (!rawName || rawName.toLowerCase() === "model") return null;
+
+  // Skip header-like rows (section markers in sheet)
+  if (
+    rawName.toLowerCase().includes("deduction") ||
+    rawName.toLowerCase().includes("camera") ||
+    rawName.toLowerCase().includes("battery")
+  ) {
+    return null;
+  }
+
+  // Normalize spaces and trim for consistent matching
+  const cleanName = rawName.replace(/\s+/g, " ");
+
+  let name = cleanName;
+  let storage = "N/A";
+  let carrier = "N/A";
+
+  // Check if carrier is explicitly in a separate column (like Column B for Samsung)
+  let explicitCarrierMatch = false;
+  let col1Carrier = "";
+  if (config.hasCarrier && config.deviceType !== "apple_watch") {
+      // Check column B
+      if (row[1]) {
+          const cMatch = row[1].match(/(Unlocked|Locked)/i);
+          if (cMatch) {
+              carrier = cMatch[1];
+              explicitCarrierMatch = true;
+              col1Carrier = row[1].trim(); // might be "Carrier Locked"
+          }
+      }
+  }
+
+  // Attempt to extract storage
+  if (config.hasStorage && config.deviceType !== "apple_watch") {
+    const storageMatch = cleanName.match(/(\d+(?:GB|TB|MB))/i);
+    if (storageMatch) {
+      storage = storageMatch[1];
+      name = cleanName.substring(0, cleanName.indexOf(storage)).trim();
+    }
+  }
+
+  // Attempt to extract carrier from name if not explicitly found in column B
+  if (config.hasCarrier && !explicitCarrierMatch && config.deviceType !== "apple_watch") {
+    const carrierMatch = cleanName.match(/(Unlocked|Locked)/i);
+    if (carrierMatch) {
+      carrier = carrierMatch[1];
+      if (name === cleanName) {
+        // If storage wasn't found, try to strip carrier from name
+        name = cleanName.substring(0, cleanName.indexOf(carrier)).trim();
+      }
+    }
+  }
+
+  // Build a unique sheetRowKey. If carrier is in column B (like Samsung), append it so rows are unique.
+  let sheetRowKey = cleanName;
+  if (explicitCarrierMatch && config.deviceType === "samsung") {
+      sheetRowKey = `${cleanName} ${col1Carrier}`;
+  }
+
+  return { name: name || cleanName, storage, carrier, sheetRowKey };
+}
+
+/**
+ * NEW: Config-driven product lookup
+ */
+async function findProductInDB(parsed, config) {
+  // Primary: match by sheetRowKey (exact, fast)
+  if (parsed.sheetRowKey) {
+    const p = await Product.findOne({
+      sheetRowKey: parsed.sheetRowKey,
+      deviceType: config.deviceType,
+    });
+    if (p) return p;
+  }
+
+  // Fallback: name + storage + carrier regex
+  const query = {
+    name: { $regex: new RegExp(`^${escapeRegex(parsed.name)}$`, "i") },
+    deviceType: config.deviceType,
+  };
+  
+  if (parsed.storage !== "N/A") {
+      query.storage = { $regex: new RegExp(`^${escapeRegex(parsed.storage)}$`, "i") };
+  }
+  
+  if (parsed.carrier !== "N/A") {
+      query.carrier = { $regex: new RegExp(`^${escapeRegex(parsed.carrier)}$`, "i") };
+  }
+
+  return Product.findOne(query);
+}
+
+/**
+ * Sync a specific sheet configuration
+ */
+async function syncSheetData(config) {
+  try {
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range,
+      spreadsheetId: config.spreadsheetId,
+      range: `${config.sheetName}!${config.dataRange}`,
     });
 
     const rows = response.data.values;
     if (!rows || rows.length < 2) {
-      console.log("⚠️ No data found in spreadsheet.");
+      console.log(`⚠️ No data found in spreadsheet for ${config.deviceType}.`);
       return;
     }
 
     console.log(
-      `📊 Found ${rows.length - 1} products in spreadsheet. Syncing...`,
+      `📊 Found ${rows.length - 1} products in ${config.deviceType} spreadsheet. Syncing...`,
     );
 
     // Row 0 is headers, Row 1 is first product data
+    let lastSeenModelName = "";
+
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (!row || row.length < 2) continue;
 
-      const fullName = (row[1] || "").trim();
-      if (!fullName || fullName.toLowerCase() === "model") continue; // Skip header or empty
+      const rawName = (row[config.modelColumn] || "").trim();
+      if (rawName && rawName.toLowerCase() !== "model" && !rawName.toLowerCase().includes("deduction")) {
+          lastSeenModelName = rawName;
+      }
 
-      const parsed = parseProductName(fullName);
+      const parsed = parseModelFromRow(row, config, lastSeenModelName);
       if (!parsed) {
-        console.log(
-          `⚠️ Skipping row ${i + 1}: Could not parse name "${fullName}"`,
-        );
-        continue;
+        console.log(`⚠️ Skipped row in ${config.deviceType}:`, row[config.modelColumn]);
+        continue; // skipped row
       }
 
-      const { name, storage, carrier } = parsed;
-      const basePriceStr = (row[2] || "").trim();
-      const basePrice = parsePrice(basePriceStr);
+      const { name, storage, carrier, sheetRowKey } = parsed;
 
+      // Base Price logic
+      let basePrice = 0;
+      // Some sheets don't have a "NEW" column, they just start with Grade A.
+      // Assuming base price might come from the first condition column if there isn't a dedicated NEW column.
+      // But for simplicity, we can set basePrice to 0 if it's not determinable, or just leave it.
+      // Here we assume NEW is column 2 if it exists, otherwise it's 0. We could configure this in SheetConfig if needed.
+      const basePriceStr = (row[2] || "").trim(); // This might not be base price for all sheets. Need to be careful.
+      basePrice = parsePrice(basePriceStr);
+      
       if (basePrice === 0 && basePriceStr.toLowerCase().includes("ask")) {
-        console.log(`ℹ️ Skipping ${fullName}: Price is "ASK"`);
+        console.log(`ℹ️ Skipping ${sheetRowKey}: Price is "ASK"`);
         continue;
       }
 
-      const avgResaleValue = basePrice + 100;
+      console.log(`🔍 Syncing: "${sheetRowKey}"...`);
 
-      // Modifiers from Columns J-N (Shipping) and Q-U (Pickup)
-      const modifiers = {
-        "Brand New": { ship: parsePrice(row[9]), pickup: parsePrice(row[16]) },
-        "Mint Condition": {
-          ship: parsePrice(row[10]),
-          pickup: parsePrice(row[17]),
-        },
-        "Good Condition": {
-          ship: parsePrice(row[11]),
-          pickup: parsePrice(row[18]),
-        },
-        "Fair Condition": {
-          ship: parsePrice(row[12]),
-          pickup: parsePrice(row[19]),
-        },
-        "Damaged Condition": {
-          ship: parsePrice(row[13]),
-          pickup: parsePrice(row[20]),
-        },
-      };
-
-      // Escape name for regex and handle special characters like (2020)
-      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-      console.log(`🔍 Syncing: "${fullName}"...`);
-
-      // Find the product in DB
-      // We use a more flexible search for name to handle slight variations
-      const product = await Product.findOne({
-        name: { $regex: new RegExp(`^${escapedName}$`, "i") },
-        storage: { $regex: new RegExp(`^${storage}$`, "i") },
-        carrier: { $regex: new RegExp(`^${carrier}$`, "i") },
-      });
+      let product = await findProductInDB(parsed, config);
 
       if (!product) {
         console.log(
-          `❌ Product not found in DB: "${fullName}" -> Parsed as: [Name: "${name}", Storage: "${storage}", Carrier: "${carrier}"]`,
+          `✨ Creating new product: "${sheetRowKey}" -> Parsed as: [Name: "${name}", Storage: "${storage}", Carrier: "${carrier}"]`,
         );
-        continue;
+        
+        // Generate a basic slug
+        const slug = `${name}-${storage}-${carrier}`.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
+        
+        // Initialize the Condition step
+        const conditionStep = {
+            title: "Condition",
+            key: config.conditionStepKey || "Condition",
+            isRequired: true,
+            order: 0,
+            options: config.conditionColumns.map(col => {
+                if (col.label.toLowerCase() === 'doa') return null;
+                return {
+                    label: col.label,
+                    subtext: "",
+                    value: col.label.toLowerCase().replace(/\s+/g, '_'),
+                    shipPriceModifier: 0,
+                    pickupPriceModifier: 0,
+                    modifierType: "fixed"
+                };
+            }).filter(Boolean)
+        };
+
+        // We need a default brand if creating, or admin must set it. 
+        // We will just let mongoose validations pass if possible, or set a dummy. 
+        // Wait, brandId is required in Product model. 
+        // We might need to find a dummy brand or skip if brand is absolutely required and missing.
+        // Actually, we can fetch the first brand from DB to use as default.
+        const Brand = require("../models/Brand");
+        let defaultBrand = await Brand.findOne();
+        
+        product = new Product({
+            name: name,
+            deviceType: config.deviceType,
+            sheetRowKey: sheetRowKey,
+            storage: storage === 'N/A' ? '' : storage,
+            carrier: carrier === 'N/A' ? '' : carrier,
+            slug: slug + '-' + Date.now(), // Ensure uniqueness
+            steps: [conditionStep],
+            basePrice: 0,
+            brandId: defaultBrand ? defaultBrand._id : null,
+            images: [],
+            isActive: true,
+        });
       }
 
-      // Update product fields
-      product.basePrice = basePrice;
-      product.avgResaleValue = avgResaleValue;
+      // Update product base prices
+      if (basePrice > 0) {
+          product.basePrice = basePrice;
+          product.avgResaleValue = basePrice + 100;
+      }
 
       // Update condition modifiers in steps
       const conditionStep = product.steps.find(
         (s) =>
-          s.key === "Condition" || s.title.toLowerCase().includes("condition"),
+          s.key === config.conditionStepKey || s.title.toLowerCase().includes("condition"),
       );
 
       if (conditionStep) {
         let updatedCount = 0;
-        conditionStep.options.forEach((option) => {
-          const mods = modifiers[option.label];
-          if (mods) {
-            option.shipPriceModifier = mods.ship;
-            option.pickupPriceModifier = mods.pickup;
-            updatedCount++;
-          }
+        
+        config.conditionColumns.forEach(({ label, shipColIndex, pickupColIndex }) => {
+            // Ignore DOA as per user instruction
+            if (label.toLowerCase() === 'doa') return;
+            
+            const option = conditionStep.options.find(
+                (o) => o.label.toLowerCase() === label.toLowerCase()
+            );
+            
+            if (option) {
+                option.shipPriceModifier = parsePrice(row[shipColIndex]);
+                option.pickupPriceModifier = parsePrice(row[pickupColIndex]);
+                updatedCount++;
+            }
         });
-        // console.log(`   - Updated ${updatedCount} condition options for ${fullName}`);
       } else {
-        console.log(`   ⚠️ No "Condition" step found for ${fullName}`);
+        console.log(`   ⚠️ No "Condition" step found for ${sheetRowKey}`);
       }
 
       await product.save();
-      console.log(`✅ Updated: ${fullName} (Base: $${basePrice})`);
+      console.log(`✅ Updated: ${sheetRowKey}`);
     }
 
-    console.log("🏁 Spreadsheet sync completed successfully.");
+    console.log(`🏁 Spreadsheet sync completed successfully for ${config.deviceType}.`);
   } catch (error) {
-    console.error("❌ Error syncing spreadsheet data:", error);
+    console.error(`❌ Error syncing spreadsheet data for ${config.deviceType}:`, error);
   }
 }
 
-module.exports = { syncSpreadsheetData };
+/**
+ * Sync all active sheets
+ */
+async function syncSpreadsheetData() {
+    const configs = await SheetConfig.find({ isActive: true });
+    for (const config of configs) {
+        await syncSheetData(config);
+    }
+}
+
+/**
+ * Sync a specific device type
+ */
+async function syncSheetByDeviceType(deviceType) {
+    const config = await SheetConfig.findOne({ deviceType, isActive: true });
+    if (!config) {
+        throw new Error(`No active sheet configuration found for deviceType: ${deviceType}`);
+    }
+    await syncSheetData(config);
+}
+
+module.exports = { syncSpreadsheetData, syncSheetByDeviceType };

@@ -28,5 +28,6 @@ router.get("/:id/analytics", ctrl.getAnalytics);
 router.post("/:id/duplicate", ctrl.duplicateProduct);
 router.patch("/bulk-update", ctrl.bulkUpdateProducts);
 router.post("/sync-spreadsheet", ctrl.syncSpreadsheet);
+router.post("/sync-spreadsheet/:deviceType", ctrl.syncSpreadsheetByType);
 
 module.exports = router;

@@ -37,6 +37,16 @@ const productSchema = new mongoose.Schema(
       required: [true, "Product name is required"],
       trim: true,
     },
+    deviceType: {
+      type: String,
+      enum: ['iphone', 'ipad', 'samsung', 'pixel', 'apple_watch', 'other'],
+      default: 'other',
+    },
+    sheetRowKey: {
+      type: String,
+      trim: true,
+      index: true,
+    },
     carrier: {
       type: String,
       // required: [true, "Product carrier is required"],
@@ -44,7 +54,6 @@ const productSchema = new mongoose.Schema(
     },
     storage: {
       type: String,
-      required: true,
       trim: true,
     },
     slug: {
