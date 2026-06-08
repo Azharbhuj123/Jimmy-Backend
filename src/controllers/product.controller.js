@@ -85,11 +85,41 @@ const getProducts = asyncHandler(async (req, res) => {
 
   /**
    * 3. EXECUTE MAIN QUERY WITH UNIQUE GROUPING
+   *    For apple_watch, strip trailing size (e.g. "41mm") from name so
+   *    "Series 8 41mm" and "Series 8 45mm" collapse into one "Series 8" card.
    */
-  // Calculate total unique products (grouped by name and brandId)
+
+  // Helper: compute baseName for apple_watch (strip trailing " XXmm")
+  const addBaseNameStage = {
+    $addFields: {
+      _baseName: {
+        $cond: {
+          if: { $eq: ["$deviceType", "apple_watch"] },
+          then: {
+            $let: {
+              vars: {
+                match: { $regexFind: { input: "$name", regex: /^(.+?)\s+\d{2}mm$/i } },
+              },
+              in: {
+                $cond: {
+                  if: { $ne: ["$$match", null] },
+                  then: { $arrayElemAt: ["$$match.captures", 0] },
+                  else: "$name",
+                },
+              },
+            },
+          },
+          else: "$name",
+        },
+      },
+    },
+  };
+
+  // Calculate total unique products (grouped by baseName and brandId)
   const totalResult = await Product.aggregate([
     { $match: query },
-    { $group: { _id: { name: "$name", brandId: "$brandId" } } },
+    addBaseNameStage,
+    { $group: { _id: { name: "$_baseName", brandId: "$brandId" } } },
     { $count: "total" },
   ]);
   const total = totalResult[0]?.total || 0;
@@ -97,15 +127,18 @@ const getProducts = asyncHandler(async (req, res) => {
   // Fetch unique products with representation
   const products = await Product.aggregate([
     { $match: query },
+    addBaseNameStage,
     { $sort: { displayOrder: 1 } },
     {
       $group: {
-        _id: { name: "$name", brandId: "$brandId" },
+        _id: { name: "$_baseName", brandId: "$brandId" },
         doc: { $first: "$$ROOT" },
         minDisplayOrder: { $min: "$displayOrder" },
       },
     },
     { $replaceRoot: { newRoot: { $mergeObjects: ["$doc", { _groupOrder: "$minDisplayOrder" }] } } },
+    // Override display name with baseName for apple_watch so card shows "Series 8" not "Series 8 41mm"
+    { $addFields: { name: "$_baseName" } },
     { $sort: { _groupOrder: 1 } },
     { $skip: skip },
     { $limit: parseInt(limit) },
@@ -220,14 +253,42 @@ const searchProducts = asyncHandler(async (req, res) => {
         },
       },
 
+      // Compute baseName for apple_watch (strip trailing " XXmm")
+      {
+        $addFields: {
+          _baseName: {
+            $cond: {
+              if: { $eq: ["$deviceType", "apple_watch"] },
+              then: {
+                $let: {
+                  vars: {
+                    match: { $regexFind: { input: "$name", regex: /^(.+?)\s+\d{2}mm$/i } },
+                  },
+                  in: {
+                    $cond: {
+                      if: { $ne: ["$$match", null] },
+                      then: { $arrayElemAt: ["$$match.captures", 0] },
+                      else: "$name",
+                    },
+                  },
+                },
+              },
+              else: "$name",
+            },
+          },
+        },
+      },
+
       // Collapse variants into unique base models
       {
         $group: {
-          _id: { name: "$name", brandId: "$brandId" },
+          _id: { name: "$_baseName", brandId: "$brandId" },
           doc: { $first: "$$ROOT" },
         },
       },
       { $replaceRoot: { newRoot: "$doc" } },
+      // Override display name with baseName for apple_watch
+      { $addFields: { name: "$_baseName" } },
 
       // Use $facet for count + paginated data in a single query
       {
@@ -437,12 +498,30 @@ const getGroupedProductBySlug = asyncHandler(async (req, res) => {
   }).populate("brandId", "name slug logo");
   if (!referenceProduct) throw new ApiError(404, "Product not found");
 
-  // 2. Find all products with the same base name
-  const allVariants = await Product.find({
-    name: referenceProduct.name,
-    brandId: referenceProduct.brandId,
-    isActive: true,
-  }).lean();
+  // 2. For apple_watch, compute baseName by stripping trailing size (e.g. " 41mm")
+  //    so we can find all size variants of the same model.
+  let variantQuery;
+  let displayName = referenceProduct.name;
+
+  if (referenceProduct.deviceType === "apple_watch") {
+    const sizeMatch = referenceProduct.name.match(/^(.+?)\s+\d{2}mm$/i);
+    const baseName = sizeMatch ? sizeMatch[1] : referenceProduct.name;
+    displayName = baseName;
+    // Match all products whose name starts with baseName and ends with a size
+    variantQuery = {
+      name: { $regex: new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+\\d{2}mm$`, 'i') },
+      brandId: referenceProduct.brandId,
+      isActive: true,
+    };
+  } else {
+    variantQuery = {
+      name: referenceProduct.name,
+      brandId: referenceProduct.brandId,
+      isActive: true,
+    };
+  }
+
+  const allVariants = await Product.find(variantQuery).lean();
 
   // 3. Extract and sort unique storage options
   const storageOptions = [...new Set(allVariants.map((p) => p.storage))]
@@ -450,7 +529,10 @@ const getGroupedProductBySlug = asyncHandler(async (req, res) => {
     .sort((a, b) => {
       const getVal = (s) => {
         const num = parseInt(s);
-        return s.toLowerCase().includes("tb") ? num * 1024 : num;
+        if (s.toLowerCase().includes("tb")) return num * 1024;
+        if (s.toLowerCase().includes("gb")) return num;
+        if (s.toLowerCase().includes("mm")) return num;
+        return num;
       };
       return getVal(a) - getVal(b);
     });
@@ -459,7 +541,8 @@ const getGroupedProductBySlug = asyncHandler(async (req, res) => {
   return ApiResponse.success(
     res,
     {
-      name: referenceProduct.name,
+      name: displayName,
+      deviceType: referenceProduct.deviceType,
       storageOptions,
       products: allVariants,
       referenceProduct,
