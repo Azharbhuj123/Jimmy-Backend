@@ -19,18 +19,20 @@ const startServer = async () => {
 
   // Seed default admin on first start
   await seedAdmin();
+  await syncSpreadsheetData();
+
   if (process.env.NODE_ENV === "production") {
     // Initial Sync pricing from Google Sheets
-    // await syncSpreadsheetData();
+    await syncSpreadsheetData();
 
-    // // Periodic Sync every 30 minutes
-    // setInterval(
-    //   async () => {
-    //     console.log("⏰ [Interval] Starting scheduled spreadsheet sync...");
-    //     await syncSpreadsheetData();
-    //   },
-    //   30 * 60 * 1000,
-    // );
+    // Periodic Sync every 30 minutes
+    setInterval(
+      async () => {
+        console.log("⏰ [Interval] Starting scheduled spreadsheet sync...");
+        await syncSpreadsheetData();
+      },
+      30 * 60 * 1000,
+    );
   }
 
   // Start HTTP server

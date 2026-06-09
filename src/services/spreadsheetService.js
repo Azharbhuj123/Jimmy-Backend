@@ -119,16 +119,24 @@ function parseModelFromRow(row, config, lastSeenModelName = "") {
  * NEW: Config-driven product lookup
  */
 async function findProductInDB(parsed, config) {
-  // Primary: match by sheetRowKey (exact, fast)
   if (parsed.sheetRowKey) {
-    const p = await Product.findOne({
-      sheetRowKey: parsed.sheetRowKey,
-      deviceType: config.deviceType,
-    });
+    const p = await Product.findOne({ sheetRowKey: parsed.sheetRowKey });
     if (p) return p;
   }
 
-  // Fallback: name + storage + carrier regex
+  // Calculate the expected slug to handle slight punctuation differences (e.g. iPad Pro 13" vs iPad Pro 13)
+  const namePart = parsed.name.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, "");
+  const storagePart = parsed.storage && parsed.storage !== "N/A" ? parsed.storage.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, "") : "";
+  const carrierPart = parsed.carrier && parsed.carrier !== "N/A" ? parsed.carrier.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, "") : "";
+  const expectedSlug = [namePart, storagePart, carrierPart].filter(Boolean).join("-");
+
+  console.log(`[DEBUG] findProductInDB expectedSlug: ${expectedSlug}`);
+  // If a product with the exact expected slug exists, just return it! 
+  // This prevents E11000 duplicate key errors and gracefully updates the existing product.
+  const bySlug = await Product.findOne({ slug: expectedSlug });
+  console.log(`[DEBUG] findProductInDB bySlug found: ${!!bySlug}`);
+  if (bySlug) return bySlug;
+
   const query = {
     name: { $regex: new RegExp(`^${escapeRegex(parsed.name)}$`, "i") },
     deviceType: config.deviceType,
@@ -173,7 +181,8 @@ async function syncSheetData(config) {
       if (!row || row.length < 2) continue;
 
       const rawName = (row[config.modelColumn] || "").trim();
-      if (rawName && rawName.toLowerCase() !== "model" && !rawName.toLowerCase().includes("deduction")) {
+      const knownHeaderWords = ["model", "new", "sealed", "open", "grade a", "grade b"];
+      if (rawName && !knownHeaderWords.includes(rawName.toLowerCase()) && !rawName.toLowerCase().includes("deduction")) {
           lastSeenModelName = rawName;
       }
 
@@ -199,11 +208,48 @@ async function syncSheetData(config) {
         continue;
       }
 
+      // Skip category headers (rows with only 1 non-empty cell)
+      const nonEmpties = row.filter(cell => String(cell).trim() !== "");
+      if (nonEmpties.length <= 1) {
+          console.log(`ℹ️ Skipping category header row: ${rawName}`);
+          continue;
+      }
+
+      // Skip section divider rows that contain "Shipping" or "Pickup" as column markers
+      // These are rows like: "S23 | | | ... | Shipping > | | ... | Pickup"
+      const hasShippingPickup = row.some(cell => 
+          String(cell).trim().toLowerCase().includes("shipping") || 
+          String(cell).trim().toLowerCase() === "pickup"
+      );
+      if (hasShippingPickup) {
+          console.log(`ℹ️ Skipping section divider row: ${rawName}`);
+          continue;
+      }
+
+      // Skip header rows that were accidentally parsed (column labels)
+      const col1Str = (row[1] || "").trim().toUpperCase();
+      const col2Str = (row[2] || "").trim().toUpperCase();
+      const col3Str = (row[3] || "").trim().toUpperCase();
+      const headerWords = ["NEW", "SEALED", "OPEN", "A / HSO", "B GRADE", "GRADE A"];
+      
+      if (
+          headerWords.includes(col1Str) || 
+          headerWords.includes(col2Str) || 
+          headerWords.includes(col3Str) ||
+          basePriceStr.toUpperCase() === "NEW" || 
+          basePriceStr.toUpperCase() === "SEALED" || 
+          basePriceStr.toUpperCase() === "OPEN"
+      ) {
+        console.log(`ℹ️ Skipping header labels row for ${sheetRowKey}`);
+        continue;
+      }
+
       console.log(`🔍 Syncing: "${sheetRowKey}"...`);
 
-      let product = await findProductInDB(parsed, config);
+      try {
+          let product = await findProductInDB(parsed, config);
 
-      if (!product) {
+          if (!product) {
         console.log(
           `✨ Creating new product: "${sheetRowKey}" -> Parsed as: [Name: "${name}", Storage: "${storage}", Carrier: "${carrier}"]`,
         );
@@ -236,7 +282,14 @@ async function syncSheetData(config) {
         // We might need to find a dummy brand or skip if brand is absolutely required and missing.
         // Actually, we can fetch the first brand from DB to use as default.
         const Brand = require("../models/Brand");
-        let defaultBrand = await Brand.findOne();
+        let brandSlug = 'apple';
+        if (config.deviceType === 'samsung') brandSlug = 'samsung';
+        else if (config.deviceType === 'pixel') brandSlug = 'google';
+        
+        let targetBrand = await Brand.findOne({ slug: brandSlug });
+        if (!targetBrand) {
+            targetBrand = await Brand.findOne();
+        }
         
         product = new Product({
             name: name,
@@ -247,7 +300,7 @@ async function syncSheetData(config) {
             slug: slug + '-' + Date.now(), // Ensure uniqueness
             steps: [conditionStep],
             basePrice: 0,
-            brandId: defaultBrand ? defaultBrand._id : null,
+            brandId: targetBrand ? targetBrand._id : null,
             images: [],
             isActive: true,
         });
@@ -282,12 +335,18 @@ async function syncSheetData(config) {
                 updatedCount++;
             }
         });
+        
+        // Force Mongoose to recognize the nested array modification
+        product.markModified('steps');
       } else {
         console.log(`   ⚠️ No "Condition" step found for ${sheetRowKey}`);
       }
 
       await product.save();
       console.log(`✅ Updated: ${sheetRowKey}`);
+      } catch (err) {
+          console.error(`❌ Error updating product "${sheetRowKey}":`, err.message);
+      }
     }
 
     console.log(`🏁 Spreadsheet sync completed successfully for ${config.deviceType}.`);
