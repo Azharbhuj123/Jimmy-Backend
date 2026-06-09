@@ -19,7 +19,6 @@ const startServer = async () => {
 
   // Seed default admin on first start
   await seedAdmin();
-  await syncSpreadsheetData();
 
   if (process.env.NODE_ENV === "production") {
     // Initial Sync pricing from Google Sheets
