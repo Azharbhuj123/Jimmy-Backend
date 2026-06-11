@@ -8,7 +8,7 @@ const PORT = process.env.PORT;
 
 const { Server } = require("socket.io");
 const DriverLocation = require("./models/DriverLocation");
-
+const Product = require("./models/Product");
 const { syncSpreadsheetData } = require("./services/spreadsheetService");
 
 // syncSpreadsheetData(); // Initial sync on startup
@@ -35,7 +35,8 @@ const startServer = async () => {
   }
 
   // Start HTTP server
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, async() => {
+    
     console.log(
       `\n🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`,
     );

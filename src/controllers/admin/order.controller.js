@@ -354,10 +354,19 @@ const updateInternalDetails = asyncHandler(async (req, res) => {
   ApiResponse.success(res, { order }, "Internal details updated");
 });
 
+const deleteOrder = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) throw new ApiError(404, "Order not found");
+
+  await Order.deleteOne({ _id: req.params.id });
+  return ApiResponse.success(res, null, "Order deleted successfully");
+});
+
 module.exports = {
   createOrder,
   getOrders,
   getOrder,
+  deleteOrder,
   updateOrderStatus,
   updateShipping,
   markPaymentSent,

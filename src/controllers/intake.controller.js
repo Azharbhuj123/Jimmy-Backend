@@ -4,6 +4,7 @@ const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
 const { uploadToS3 } = require("../services/upload.service");
 const { fetchMarketValuation, publishListingToMarketplace } = require("../services/marketplace.stub.service");
+const { sendRepricingEmail } = require("../services/email.service");
 
 /**
  * Helper to safely parse incoming form fields whether sent as JSON string,
@@ -191,6 +192,53 @@ const getAgingInventory = asyncHandler(async (req, res) => {
   );
 });
 
+// PATCH /api/intake/lower-price
+// Applies 15% discount to acquisition_info.purchase_price, emails client if email on file,
+// and returns a ready-to-send client message for the admin to share manually.
+const lowerPrice = asyncHandler(async (req, res) => {
+  const { internal_id } = req.body;
+
+  if (!internal_id) {
+    throw new ApiError(400, "internal_id is required");
+  }
+
+  const intake = await Intake.findOne({ internal_id });
+  if (!intake) {
+    throw new ApiError(404, `Intake record not found for ID: ${internal_id}`);
+  }
+
+  const originalPrice = intake.acquisition_info.purchase_price;
+  const discountedPrice = parseFloat((originalPrice * 0.85).toFixed(2));
+
+  // Save the new price and flag status
+  intake.acquisition_info.purchase_price = discountedPrice;
+  intake.order_status = "Counteroffer Needed";
+  await intake.save();
+
+  // Send email to client if email is on file (non-blocking)
+  const emailSent = !!intake.client_email;
+  if (emailSent) {
+    await sendRepricingEmail(intake, discountedPrice);
+  }
+
+  // Build a ready-to-share message the admin can copy/send manually
+  const deviceLabel = `${intake.device_info.name} ${intake.device_info.capacity}`;
+  const clientMessage = [].join("\n");
+
+  ApiResponse.success(
+    res,
+    {
+      internal_id,
+      original_price: originalPrice,
+      new_price: discountedPrice,
+      email_sent: emailSent,
+      client_message: clientMessage,
+    },
+    `Price lowered to $${discountedPrice} (15% discount applied)`,
+    200,
+  );
+});
+
 // POST /api/intake/publish-marketplace (Bonus integration endpoint)
 const publishMarketplace = asyncHandler(async (req, res) => {
   const { internal_id, marketplace } = req.body;
@@ -221,6 +269,7 @@ module.exports = {
   createIntake,
   lookupIntake,
   assignDriver,
+  lowerPrice,
   getAgingInventory,
   publishMarketplace,
   getAllIntakes,

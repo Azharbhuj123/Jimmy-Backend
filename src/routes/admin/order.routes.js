@@ -6,6 +6,7 @@ const validate = require('../../middlewares/validate.middleware');
 router.get('/', ctrl.getOrders);
 router.post('/', ctrl.createOrder);
 router.get('/:id', ctrl.getOrder);
+router.delete('/:id', ctrl.deleteOrder);
 
 router.put(
   '/:id/status',

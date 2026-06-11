@@ -46,6 +46,9 @@ const intakeSchema = new mongoose.Schema(
         required: true,
       },
     },
+    // Optional seller contact info (for repricing notifications)
+    client_email: { type: String, trim: true, default: "" },
+    client_name: { type: String, trim: true, default: "" },
     tracking: {
       employee: { type: String, trim: true, default: "Unassigned Employee" },
       lead_source: { type: String, trim: true, default: "Walk-in" },

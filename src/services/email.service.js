@@ -569,6 +569,63 @@ const sendDriverWelcomeEmail = async (driver, plainPassword) => {
   });
 };
 
+// ────────────────────────────────────────────────────────────────────────────
+// 10. AGING INVENTORY REPRICE NOTIFICATION
+// ────────────────────────────────────────────────────────────────────────────
+
+const sendRepricingEmail = async (intake, newPrice) => {
+  const recipientEmail = intake.client_email;
+  const recipientName = intake.client_name || "Valued Customer";
+  const originalPrice = intake.acquisition_info.purchase_price;
+  const deviceName = intake.device_info.name;
+  const capacity = intake.device_info.capacity;
+  const condition = intake.physical_condition.condition;
+
+  await sendEmail({
+    to: recipientEmail,
+    subject: `Updated Offer for Your ${deviceName} — QuickyCell`,
+    html: emailWrapper(`
+      <div style="background:#b45309;padding:16px 20px;border-radius:6px;margin-bottom:20px;">
+        <h3 style="color:#fff;margin:0;">📉 Revised Offer for Your Device</h3>
+      </div>
+
+      <p>Hi <strong>${recipientName}</strong>,</p>
+      <p>
+        Thank you for bringing your device to <strong>QuickyCell</strong>.
+        After reviewing our current market data, we would like to update the offer for your device.
+      </p>
+
+      ${table([
+        infoRow("Device", `${deviceName} — ${capacity}`),
+        infoRow("Condition", condition),
+        infoRow("Tracking ID", intake.internal_id),
+        infoRow("Original Offer", `<s style="color:#aaa;">$${originalPrice.toFixed(2)}</s>`),
+        infoRow(
+          "Revised Offer",
+          `<strong style="color:#16a34a;font-size:16px;">$${newPrice.toFixed(2)}</strong>`,
+        ),
+      ])}
+
+      <div style="background:#fefce8;border-left:4px solid #ca8a04;padding:14px 18px;border-radius:4px;margin:20px 0;">
+        <p style="margin:0;font-size:14px;color:#92400e;">
+          <strong>Why the change?</strong><br/>
+          Pricing for pre-owned devices is adjusted based on current market demand and the time the device has been in our inventory.
+          This new price reflects a fair market value to help us move your device quickly.
+        </p>
+      </div>
+
+      <p style="font-size:14px;color:#555;">
+        If you would like to accept this revised offer or have any questions, please visit us in store or reply to this email.
+        You are under no obligation to accept — your device is safe with us.
+      </p>
+
+      <p style="color:#888;font-size:13px;margin-top:20px;">
+        Thank you for choosing QuickyCell!
+      </p>
+    `),
+  });
+};
+
 module.exports = {
   sendEmail,
   sendOrderCreatedEmail,
@@ -580,4 +637,5 @@ module.exports = {
   sendDriverAssignmentEmail,
   sendDriverWelcomeEmail,
   sendContactNotificationEmail,
+  sendRepricingEmail,
 };

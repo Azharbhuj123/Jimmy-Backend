@@ -7,32 +7,63 @@ const asyncHandler = require("../../utils/asyncHandler");
 
 const getDashboard = asyncHandler(async (req, res) => {
   const range = req.query.range || "weekly";
-  const excludedStatuses = [
-    "label_sent",
-    "shipped",
-    "received",
-    "inspected",
-    "paid",
-  ];
+
+  // Today's date range (midnight to midnight)
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  // Current month date range
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const monthEnd = new Date();
+  monthEnd.setHours(23, 59, 59, 999);
 
   const [
-    totalUsers,
-    totalOrders,
-    payoutAgg,
-    pendingPaymentCount,
+    scheduledPickupToday,
+    enRoute,
+    delivered,
+    needInspection,
+    awaitingPayment,
+    ordersPaid,
+    salesAgg,
     recentOrders,
     ordersByStatus,
     dailyPayout,
-    // topProducts,
   ] = await Promise.all([
-    User.countDocuments({ role: "user" }),
-    Order.countDocuments(),
+    // 1. Orders scheduled for pickup today (pickup orders with label_sent, scheduled today)
+    Order.countDocuments({
+      fulfillmentType: "pickup",
+      status: "label_sent",
+      createdAt: { $gte: todayStart, $lte: todayEnd },
+    }),
 
-    // Total paid out (admin already paid)
+    // 2. Orders En Route (shipped)
+    Order.countDocuments({ status: "shipped" }),
+
+    // 3. Orders Delivered (received by warehouse)
+    Order.countDocuments({ status: "received" }),
+
+    // 4. Orders Need Inspection (received but not yet inspected)
+    Order.countDocuments({ status: "received" }),
+
+    // 5. Orders Awaiting Payment (ready_to_pay or inspected with pending payment)
+    Order.countDocuments({
+      status: { $in: ["ready_to_pay", "inspected"] },
+      paymentStatus: { $ne: "sent" },
+    }),
+
+    // 6. Orders Paid
+    Order.countDocuments({ status: "paid" }),
+
+    // 7. Sales for the Month (sum of paid orders this calendar month)
     Order.aggregate([
       {
         $match: {
-          status: { $nin: excludedStatuses },
+          status: "paid",
+          updatedAt: { $gte: monthStart, $lte: monthEnd },
         },
       },
       {
@@ -43,12 +74,6 @@ const getDashboard = asyncHandler(async (req, res) => {
       },
     ]),
 
-    // Pending payments (inspected but not yet paid)
-    Order.countDocuments({
-      status: "inspected",
-      paymentStatus: { $ne: "sent" },
-    }),
-
     Order.find()
       .sort({ createdAt: -1 })
       .limit(10)
@@ -58,49 +83,21 @@ const getDashboard = asyncHandler(async (req, res) => {
     Order.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
 
     getPayoutAnalytics(range),
-
-    // Top products by payout
-    // Order.aggregate([
-    //   { $match: { status: "paid" } },
-    //   { $unwind: "$items" },
-    //   {
-    //     $group: {
-    //       _id: "$items.productId",
-    //       totalPayout: { $sum: "$items.calculatedPrice" },
-    //       totalOrders: { $sum: 1 },
-    //     },
-    //   },
-    //   { $sort: { totalPayout: -1 } },
-    //   { $limit: 5 },
-    //   {
-    //     $lookup: {
-    //       from: "products",
-    //       localField: "_id",
-    //       foreignField: "_id",
-    //       as: "product",
-    //     },
-    //   },
-    //   { $unwind: "$product" },
-    //   {
-    //     $project: {
-    //       productName: "$product.name",
-    //       totalPayout: { $round: ["$totalPayout", 2] },
-    //       totalOrders: 1,
-    //     },
-    //   },
-    // ]),
   ]);
 
-  const labelNotSent = payoutAgg[0]?.total || 0;
+  const salesForMonth = salesAgg[0]?.total || 0;
 
   ApiResponse.success(
     res,
     {
       stats: {
-        totalUsers,
-        totalOrders,
-        labelNotSent: parseFloat(labelNotSent.toFixed(2)),
-        pendingPayments: pendingPaymentCount,
+        scheduledPickupToday,
+        enRoute,
+        delivered,
+        needInspection,
+        awaitingPayment,
+        ordersPaid,
+        salesForMonth: parseFloat(salesForMonth.toFixed(2)),
       },
       ordersByStatus: ordersByStatus.reduce(
         (acc, s) => ({ ...acc, [s._id]: s.count }),
@@ -108,7 +105,6 @@ const getDashboard = asyncHandler(async (req, res) => {
       ),
       recentOrders,
       dailyPayout,
-      // topProducts,
     },
     "Dashboard data fetched",
   );

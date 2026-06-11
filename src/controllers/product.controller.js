@@ -32,12 +32,19 @@ const getProducts = asyncHandler(async (req, res) => {
   }
 
   // Filter by Active Tab (Keyword matching)
-  if (activeTab && activeTab !== "undefined" && activeTab !== "Other Phones") {
-    // Clean "Sell " prefix if it exists to get core keywords like "iPad" or "Samsung"
-    const tabKeyword = activeTab.replace(/sell/i, "").trim();
+  if (activeTab && activeTab !== "undefined") {
+    const tabKeyword = activeTab.replace(/sell/i, "").trim().toLowerCase();
 
-    if (tabKeyword.toLowerCase() === "smart watch" || tabKeyword.toLowerCase() === "smart watches") {
-      andConditions.push({ deviceType: "apple_watch" });
+    if (tabKeyword === "iphone") {
+      andConditions.push({ name: { $regex: "iphone", $options: "i" } });
+    } else if (tabKeyword === "ipad" || tabKeyword === "tablets") {
+      andConditions.push({ name: { $regex: "ipad", $options: "i" } });
+    } else if (tabKeyword === "samsung") {
+      andConditions.push({ name: { $regex: "samsung|galaxy", $options: "i" } });
+    } else if (tabKeyword === "smart watch" || tabKeyword === "smart watches") {
+      andConditions.push({ name: { $regex: "watch", $options: "i" } });
+    } else if (tabKeyword === "other phones" || tabKeyword === "google pixel" || tabKeyword === "pixel") {
+      andConditions.push({ name: { $regex: "pixel", $options: "i" } });
     } else {
       andConditions.push({
         $or: [
@@ -128,18 +135,17 @@ const getProducts = asyncHandler(async (req, res) => {
   const products = await Product.aggregate([
     { $match: query },
     addBaseNameStage,
-    { $sort: { displayOrder: 1 } },
+    { $sort: { basePrice: -1 } },
     {
       $group: {
         _id: { name: "$_baseName", brandId: "$brandId" },
         doc: { $first: "$$ROOT" },
-        minDisplayOrder: { $min: "$displayOrder" },
       },
     },
-    { $replaceRoot: { newRoot: { $mergeObjects: ["$doc", { _groupOrder: "$minDisplayOrder" }] } } },
+    { $replaceRoot: { newRoot: "$doc" } },
     // Override display name with baseName for apple_watch so card shows "Series 8" not "Series 8 41mm"
     { $addFields: { name: "$_baseName" } },
-    { $sort: { _groupOrder: 1 } },
+    { $sort: { basePrice: -1 } },
     { $skip: skip },
     { $limit: parseInt(limit) },
   ]);

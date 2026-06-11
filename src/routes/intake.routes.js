@@ -12,6 +12,9 @@ router.get("/lookup/:identifier", optionalToken, intakeCtrl.lookupIntake);
 // PATCH /api/intake/assign-driver - Assigns employee/driver to unassigned device pickup order
 router.patch("/assign-driver", optionalToken, intakeCtrl.assignDriver);
 
+// PATCH /api/intake/lower-price - Applies 15% discount & sets status to Counteroffer Needed
+router.patch("/lower-price", optionalToken, intakeCtrl.lowerPrice);
+
 // POST /api/intake/publish-marketplace - Bonus integration endpoint
 router.post("/publish-marketplace", optionalToken, intakeCtrl.publishMarketplace);
 
