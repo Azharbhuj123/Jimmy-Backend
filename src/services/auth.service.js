@@ -67,4 +67,29 @@ const resetPassword = async (resetCode, newPassword) => {
   return { user, token };
 };
 
-module.exports = { register, login, forgotPassword, resetPassword };
+const googleLogin = async ({ email, name, firebaseId, avatar }) => {
+  if (!email) throw new ApiError(400, 'Email is required.');
+
+  let user = await User.findOne({ email });
+
+  if (user) {
+    if (!user.isActive) throw new ApiError(403, 'Your account has been deactivated.');
+    user.firebaseId = firebaseId || user.firebaseId;
+    user.authProvider = 'google';
+    if (avatar) user.avatar = avatar;
+    await user.save();
+  } else {
+    user = await User.create({
+      name: name || email.split('@')[0],
+      email,
+      authProvider: 'google',
+      firebaseId: firebaseId || '',
+      avatar: avatar || '',
+    });
+  }
+
+  const token = generateToken(user._id);
+  return { user, token };
+};
+
+module.exports = { register, login, forgotPassword, resetPassword, googleLogin };

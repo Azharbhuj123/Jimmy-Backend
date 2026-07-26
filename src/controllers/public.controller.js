@@ -2,6 +2,7 @@ const FAQ = require("../models/FAQ");
 const Blog = require("../models/Blog");
 const Category = require("../models/Category");
 const Brand = require("../models/Brand");
+const Product = require("../models/Product");
 const ApiResponse = require("../utils/ApiResponse");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
@@ -124,6 +125,69 @@ const calculateOrderPrice = asyncHandler(async (req, res) => {
   ApiResponse.success(res, result, "Price calculated");
 });
 
+// POST /upload-multiple - Upload up to 3 images
+const uploadFiles = asyncHandler(async (req, res) => {
+  const files = req.files;
+  if (!files || files.length === 0) throw new ApiError(400, "No files uploaded");
+  if (files.length > 3) throw new ApiError(400, "Maximum 3 images allowed");
+
+  const urls = await Promise.all(
+    files.map((file) => uploadToS3(file.buffer, file.originalname, "images")),
+  );
+
+  ApiResponse.success(res, { urls }, "Files uploaded successfully", 200);
+});
+
+// POST /manual-products
+const createManualProduct = asyncHandler(async (req, res) => {
+  const {
+    brandId,
+    category,
+    model,
+    storage,
+    carrier,
+    condition,
+    askingPrice,
+    images,
+  } = req.body;
+
+  if (!model || !askingPrice) {
+    throw new ApiError(400, "Model name and asking price are required");
+  }
+
+  const price = parseFloat(askingPrice);
+  if (isNaN(price) || price <= 0) {
+    throw new ApiError(400, "Asking price must be a positive number");
+  }
+
+  const product = await Product.create({
+    name: model,
+    brandId: brandId || null,
+    storage: storage || "",
+    carrier: carrier || "",
+    basePrice: price,
+    images: Array.isArray(images) ? images : [],
+    steps: [],
+    isManual: true,
+    isActive: true,
+  });
+
+  return ApiResponse.success(
+    res,
+    {
+      _id: product._id,
+      name: product.name,
+      images: product.images,
+      basePrice: product.basePrice,
+      storage: product.storage,
+      carrier: product.carrier,
+      isManual: true,
+    },
+    "Manual product created",
+    201,
+  );
+});
+
 module.exports = {
   getFAQs,
   getBlogs,
@@ -131,6 +195,8 @@ module.exports = {
   getCategories,
   getBrands,
   uploadFile,
+  uploadFiles,
   calculateOrderPrice,
   getAllCategories,
+  createManualProduct,
 };

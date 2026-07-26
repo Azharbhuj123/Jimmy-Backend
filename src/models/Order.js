@@ -147,6 +147,8 @@ const orderSchema = new mongoose.Schema(
     internalNotes: { type: String, trim: true },
     flags: [{ type: String, trim: true }],
     isManual: { type: Boolean, default: false },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date },
   },
   { timestamps: true },
 );

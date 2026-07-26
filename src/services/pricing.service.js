@@ -30,6 +30,20 @@ const calculatePrice = async (
   const selectedOptions = [];
   const errors = [];
 
+  // For manual products (no steps), use basePrice directly
+  if (!product.steps || product.steps.length === 0) {
+    return {
+      basePrice: product.basePrice || 0,
+      calculatedPrice: product.basePrice || 0,
+      priceBreakdown: [],
+      selectedOptions: [],
+      productName: product.name,
+      productImage: product.images,
+      productId: product._id,
+      ...extraDetails,
+    };
+  }
+
   for (const step of product.steps) {
     // Filter all selections for this step
     const userSelections = selectedOptionsArr.filter(

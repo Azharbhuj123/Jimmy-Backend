@@ -19,7 +19,6 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
       minlength: [6, 'Password must be at least 6 characters'],
       select: false,
     },
@@ -36,6 +35,17 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    authProvider: {
+      type: String,
+      enum: ['email', 'google'],
+      default: 'email',
+    },
+    firebaseId: {
+      type: String,
+    },
+    avatar: {
+      type: String,
+    },
     resetPasswordCode: {
       type: String,
       select: false,
@@ -49,7 +59,7 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });

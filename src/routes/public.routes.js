@@ -20,6 +20,8 @@ router.get('/all-categories', publicCtrl.getAllCategories);
 router.get('/brands', publicCtrl.getBrands);
 router.post('/contact', contactRules, validate, contactCtrl.submitContact);
 router.post('/upload', upload.single('file'),  publicCtrl.uploadFile);
+router.post('/upload-multiple', upload.array('files', 3),  publicCtrl.uploadFiles);
+router.post('/manual-products', publicCtrl.createManualProduct);
 router.post('/calculate-price',   publicCtrl.calculateOrderPrice);
 
 

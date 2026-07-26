@@ -35,4 +35,10 @@ const getMe = asyncHandler(async (req, res) => {
   ApiResponse.success(res, { user: req.user }, 'Profile fetched');
 });
 
-module.exports = { register, login, adminLogin, forgotPassword, resetPassword, getMe };
+const googleLogin = asyncHandler(async (req, res) => {
+  const { email, name, firebaseId, avatar } = req.body;
+  const { user, token } = await authService.googleLogin({ email, name, firebaseId, avatar });
+  ApiResponse.success(res, { user, token }, 'Google login successful');
+});
+
+module.exports = { register, login, adminLogin, googleLogin, forgotPassword, resetPassword, getMe };

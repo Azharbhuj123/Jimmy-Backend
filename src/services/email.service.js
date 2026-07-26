@@ -27,7 +27,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
 const emailWrapper = (body) => `
   <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#333;">
     <div style="background:#1a1a2e;padding:20px 24px;border-radius:8px 8px 0 0;">
-      <h2 style="color:#fff;margin:0;font-size:20px;">QuickyCell</h2>
+      <img src="https://jimmy-admin-three.vercel.app/assets/white_logo-DUYLa5qi.png" alt="QuickyCell" style="height:32px;display:block;" />
     </div>
     <div style="padding:28px 24px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 8px 8px;background:#fff;">
       ${body}
@@ -164,7 +164,7 @@ const sendStatusUpdateEmail = async (order, user, note) => {
       label: "Label Sent",
       color: "#e67e22",
       message:
-        "A prepaid shipping label has been sent. Please check the separate email.",
+        "A separate email containing your prepaid shipping label has been sent to you. Please check your inbox for the email with your shipping label attached.",
     },
     shipped: {
       label: "Shipped",
@@ -220,7 +220,7 @@ const sendStatusUpdateEmail = async (order, user, note) => {
         ),
       ])}
       ${note ? `<div style="background:#fffbe6;border-left:4px solid #f0c040;padding:12px 16px;border-radius:4px;margin-top:16px;"><strong>Note from Admin:</strong><br/><span style="color:#555;">${note}</span></div>` : ""}
-      <p style="color:#888;font-size:13px;margin-top:20px;">If you have any questions, please contact our support team.</p>
+      <p style="color:#888;font-size:13px;margin-top:20px;">Any questions? Please feel free to reach out to us at any time <a href="${process.env.FRONTEND_URL}/have-questions" style="color:#1a1a2e;text-decoration:underline;">here</a>.</p>
     `),
   });
 };

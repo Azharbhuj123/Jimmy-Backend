@@ -5,8 +5,11 @@ const validate = require('../../middlewares/validate.middleware');
 
 router.get('/', ctrl.getOrders);
 router.post('/', ctrl.createOrder);
+router.get('/deleted', ctrl.getDeletedOrders);
+router.delete('/deleted/:id/permanent', ctrl.permanentDeleteOrder);
 router.get('/:id', ctrl.getOrder);
 router.delete('/:id', ctrl.deleteOrder);
+router.put('/:id/restore', ctrl.restoreOrder);
 
 router.put(
   '/:id/status',

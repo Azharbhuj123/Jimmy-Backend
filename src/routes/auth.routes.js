@@ -18,6 +18,7 @@ const registerRules = [
 router.post('/register', registerRules, validate, ctrl.register);
 router.post('/login', loginRules, validate, ctrl.login);
 router.post('/admin/login', loginRules, validate, ctrl.adminLogin);
+router.post('/google', ctrl.googleLogin);
 
 router.post(
   '/forgot-password',

@@ -150,7 +150,7 @@ const getOrders = asyncHandler(async (req, res) => {
     isManual,
   } = req.query;
 
-  const filter = {};
+  const filter = { isDeleted: { $ne: true } };
   if (isManual === "true") filter.isManual = true;
   else if (isManual === "false") filter.isManual = false;
 
@@ -357,9 +357,67 @@ const updateInternalDetails = asyncHandler(async (req, res) => {
 const deleteOrder = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id);
   if (!order) throw new ApiError(404, "Order not found");
+  if (order.isDeleted) throw new ApiError(400, "Order is already deleted");
+
+  order.isDeleted = true;
+  order.deletedAt = new Date();
+  await order.save();
+
+  return ApiResponse.success(res, null, "Order moved to recently deleted");
+});
+
+// GET /admin/orders/deleted
+const getDeletedOrders = asyncHandler(async (req, res) => {
+  const { page, limit, skip } = getPaginationOptions(req.query);
+  const { search } = req.query;
+
+  const sortField = req.query.sortBy || "deletedAt";
+  const sortOrder = req.query.order === "asc" ? 1 : -1;
+  const sort = { [sortField]: sortOrder };
+
+  const filter = { isDeleted: true };
+  if (search) {
+    filter.$or = [
+      { orderNumber: { $regex: search, $options: "i" } },
+      { "userDetails.email": { $regex: search, $options: "i" } },
+      { "userDetails.name": { $regex: search, $options: "i" } },
+    ];
+  }
+
+  const [orders, total] = await Promise.all([
+    Order.find(filter)
+      .populate("userId", "name email phone")
+      .populate("items.productId", "name basePrice")
+      .sort(sort)
+      .skip(skip)
+      .limit(limit),
+    Order.countDocuments(filter),
+  ]);
+
+  ApiResponse.paginated(res, orders, buildPaginationMeta(total, page, limit));
+});
+
+// PUT /admin/orders/:id/restore
+const restoreOrder = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) throw new ApiError(404, "Order not found");
+  if (!order.isDeleted) throw new ApiError(400, "Order is not deleted");
+
+  order.isDeleted = false;
+  order.deletedAt = null;
+  await order.save();
+
+  return ApiResponse.success(res, { order }, "Order restored successfully");
+});
+
+// DELETE /admin/orders/:id/permanent
+const permanentDeleteOrder = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) throw new ApiError(404, "Order not found");
+  if (!order.isDeleted) throw new ApiError(400, "Order is not deleted");
 
   await Order.deleteOne({ _id: req.params.id });
-  return ApiResponse.success(res, null, "Order deleted successfully");
+  return ApiResponse.success(res, null, "Order permanently deleted");
 });
 
 module.exports = {
@@ -367,6 +425,9 @@ module.exports = {
   getOrders,
   getOrder,
   deleteOrder,
+  getDeletedOrders,
+  restoreOrder,
+  permanentDeleteOrder,
   updateOrderStatus,
   updateShipping,
   markPaymentSent,
