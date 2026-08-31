@@ -15,16 +15,17 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:5175',
+  'https://jimmy-frontend-vfpf.vercel.app'
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // In development, allow all origins that start with http://localhost
-      if (!origin || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+      if (!origin || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1') || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(null, true); // Fallback to allowing in dev
+        // Fallback to true to avoid breaking any other undocumented clients, but explicit origins are now supported
+        callback(null, true); 
       }
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
