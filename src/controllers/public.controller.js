@@ -12,6 +12,7 @@ const {
   buildPaginationMeta,
 } = require("../utils/pagination");
 const { calculatePrice } = require("../services/pricing.service");
+const { sendSellRequestEmail, sendSellRequestConfirmationEmail } = require("../services/email.service");
 
 const getFAQs = asyncHandler(async (req, res) => {
   const { category } = req.query;
@@ -188,6 +189,37 @@ const createManualProduct = asyncHandler(async (req, res) => {
   );
 });
 
+// POST /sell-request
+const submitSellRequest = asyncHandler(async (req, res) => {
+  const { deviceDetails, quotedPrice, userDetails } = req.body;
+
+  if (!deviceDetails || !userDetails || !userDetails.name || !userDetails.email) {
+    throw new ApiError(400, "Device details and user details (Name, Email) are required.");
+  }
+
+  const adminEmail = "developerdesignz123@gmail.com";
+  
+  await Promise.all([
+    sendSellRequestEmail(adminEmail, {
+      deviceDetails,
+      quotedPrice,
+      userDetails
+    }),
+    sendSellRequestConfirmationEmail(userDetails.email, {
+      deviceDetails,
+      quotedPrice,
+      userDetails
+    })
+  ]);
+
+  return ApiResponse.success(
+    res,
+    null,
+    "Request submitted successfully",
+    200
+  );
+});
+
 module.exports = {
   getFAQs,
   getBlogs,
@@ -199,4 +231,5 @@ module.exports = {
   calculateOrderPrice,
   getAllCategories,
   createManualProduct,
+  submitSellRequest,
 };

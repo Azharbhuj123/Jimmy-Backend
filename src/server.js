@@ -4,7 +4,7 @@ const connectDB = require("./config/db");
 const seedAdmin = require("./utils/seedAdmin");
 const path = require("path");
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
 const { Server } = require("socket.io");
 const DriverLocation = require("./models/DriverLocation");

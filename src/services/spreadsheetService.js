@@ -14,11 +14,18 @@ console.log("🛠️  Credential Debug:", {
 
 if (process.env.GOOGLE_CREDENTIALS) {
   try {
-    authOptions.credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    let credsStr = process.env.GOOGLE_CREDENTIALS;
+    if (credsStr.includes('\\"')) {
+      credsStr = credsStr.replace(/\\"/g, '"');
+    }
+    if (credsStr.includes('\\\\n')) {
+      credsStr = credsStr.replace(/\\\\n/g, '\\n');
+    }
+    authOptions.credentials = JSON.parse(credsStr);
     console.log("ℹ️ Using Google credentials from Environment Variable");
   } catch (err) {
     console.error(
-      "❌ Error parsing GOOGLE_CREDENTIALS env var. Falling back to file.",
+      "❌ Error parsing GOOGLE_CREDENTIALS env var. Falling back to file. Error:", err.message
     );
     authOptions.keyFile = path.join(__dirname, "../credentials.json");
   }

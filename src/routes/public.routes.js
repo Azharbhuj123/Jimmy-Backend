@@ -23,6 +23,7 @@ router.post('/upload', upload.single('file'),  publicCtrl.uploadFile);
 router.post('/upload-multiple', upload.array('files', 3),  publicCtrl.uploadFiles);
 router.post('/manual-products', publicCtrl.createManualProduct);
 router.post('/calculate-price',   publicCtrl.calculateOrderPrice);
+router.post('/sell-request', publicCtrl.submitSellRequest);
 
 
 module.exports = router;

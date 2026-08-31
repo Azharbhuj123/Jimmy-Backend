@@ -626,6 +626,73 @@ const sendRepricingEmail = async (intake, newPrice) => {
   });
 };
 
+const sendSellRequestEmail = async (adminEmail, requestData) => {
+  const { deviceDetails, quotedPrice, userDetails } = requestData;
+  const optionsList = deviceDetails.selectedOptions && deviceDetails.selectedOptions.length > 0
+    ? deviceDetails.selectedOptions.map(o => infoRow(o.stepKey || "Option", o.optionValue)).join('')
+    : infoRow("Additional Options", "None");
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `New Sell Request — ${deviceDetails.baseProductName}`,
+    html: emailWrapper(`
+      <h3 style="color:#1a1a2e;text-align:center;margin-bottom:24px;font-size:20px;">New Sell Request Received</h3>
+      
+      <h4 style="color:#333;margin-bottom:12px;border-bottom:2px solid #eee;padding-bottom:8px;">Customer Details</h4>
+      ${table([
+        infoRow("Name", userDetails.name || "N/A"),
+        infoRow("Email", `<a href="mailto:${userDetails.email}" style="color:#0066cc;">${userDetails.email}</a>` || "N/A"),
+        infoRow("Phone", userDetails.phone || "N/A"),
+        infoRow("Location", `${userDetails.city || ''}, ${userDetails.state || ''} ${userDetails.zip || ''}`.trim() || "N/A"),
+      ].join(''))}
+      
+      <h4 style="color:#333;margin-top:24px;margin-bottom:12px;border-bottom:2px solid #eee;padding-bottom:8px;">Device Specifications</h4>
+      ${table([
+        infoRow("Device Model", deviceDetails.baseProductName || "N/A"),
+        infoRow("Storage", deviceDetails.selectedStorage || "N/A"),
+        infoRow("Carrier", deviceDetails.selectedCarrier || "N/A"),
+        optionsList
+      ].join(''))}
+      
+      <p style="color:#888;font-size:13px;margin-top:32px;text-align:center;">
+        This request was submitted directly via the frontend Sell Item flow.
+      </p>
+    `),
+  });
+};
+
+const sendSellRequestConfirmationEmail = async (userEmail, requestData) => {
+  const { deviceDetails, quotedPrice, userDetails } = requestData;
+  const optionsList = deviceDetails.selectedOptions && deviceDetails.selectedOptions.length > 0
+    ? deviceDetails.selectedOptions.map(o => infoRow(o.stepKey || "Option", o.optionValue)).join('')
+    : infoRow("Additional Options", "None");
+
+  return sendEmail({
+    to: userEmail,
+    subject: `Your Sell Request Confirmation — QuickyCell`,
+    html: emailWrapper(`
+      <h3 style="color:#1a1a2e;text-align:center;margin-bottom:24px;font-size:20px;">Request Received!</h3>
+      
+      <p style="font-size:15px;color:#333;line-height:1.6;">
+        Hi <strong>${userDetails.name || 'Customer'}</strong>,<br/><br/>
+        Thank you for choosing QuickyCell! We've received your sell request for your <strong>${deviceDetails.baseProductName}</strong>. Our team will review your submission and reach out to you shortly with the next steps.
+      </p>
+      
+      <h4 style="color:#333;margin-top:24px;margin-bottom:12px;border-bottom:2px solid #eee;padding-bottom:8px;">Your Device Specifications</h4>
+      ${table([
+        infoRow("Device Model", deviceDetails.baseProductName || "N/A"),
+        infoRow("Storage", deviceDetails.selectedStorage || "N/A"),
+        infoRow("Carrier", deviceDetails.selectedCarrier || "N/A"),
+        optionsList
+      ].join(''))}
+      
+      <p style="color:#666;font-size:14px;margin-top:24px;">
+        If you have any questions, feel free to contact us.
+      </p>
+    `),
+  });
+};
+
 module.exports = {
   sendEmail,
   sendOrderCreatedEmail,
@@ -638,4 +705,6 @@ module.exports = {
   sendDriverWelcomeEmail,
   sendContactNotificationEmail,
   sendRepricingEmail,
+  sendSellRequestEmail,
+  sendSellRequestConfirmationEmail,
 };
