@@ -197,7 +197,7 @@ const submitSellRequest = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Device details and user details (Name, Email) are required.");
   }
 
-  const adminEmail = "quickycell123@gmail.com";
+  const adminEmail = "jgeorge1995@gmail.com";
   
   await Promise.all([
     sendSellRequestEmail(adminEmail, {
@@ -211,6 +211,11 @@ const submitSellRequest = asyncHandler(async (req, res) => {
       userDetails
     })
   ]);
+
+  console.log("userDetails",userDetails);
+  console.log("quotedPrice",quotedPrice);
+  console.log("deviceDetails",deviceDetails);
+  console.log("adminEmail",adminEmail);
 
   return ApiResponse.success(
     res,
