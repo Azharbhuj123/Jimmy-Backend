@@ -45,10 +45,21 @@ const startServer = async () => {
   });
 
   // Socket.io setup
+  // const io = new Server(server, {
+  //   cors: {
+  //     origin: "*", // Adjust for prod
+  //   },
+  // });
+
   const io = new Server(server, {
     cors: {
-      origin: "*", // Adjust for prod
-    },
+      origin: [
+        "https://quickycell.com",
+        "https://admin.quickycell.com",
+        "https://store.quickycell.com"
+      ],
+      credentials: true
+    }
   });
 
   app.io = io; // attach to app
