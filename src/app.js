@@ -15,7 +15,10 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:5175',
-  'https://jimmy-frontend-vfpf.vercel.app'
+  'https://jimmy-frontend-vfpf.vercel.app',
+  'https://quickycell.com',
+  'https://admin.quickycell.com',
+  'https://store.quickycell.com'
 ].filter(Boolean);
 
 app.use(
