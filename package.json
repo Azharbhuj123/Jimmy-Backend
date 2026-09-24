@@ -2,10 +2,10 @@
   "name": "production-backend",
   "version": "1.0.0",
   "description": "Production-ready Node.js + Express + MongoDB backend",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1019.0",

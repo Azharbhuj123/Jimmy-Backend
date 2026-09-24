@@ -1,15 +1,15 @@
 require("dotenv").config();
-const app = require("./app");
-const connectDB = require("./config/db");
-const seedAdmin = require("./utils/seedAdmin");
+const app = require("./src/app");
+const connectDB = require("./src/config/db");
+const seedAdmin = require("./src/utils/seedAdmin");
 const path = require("path");
 
 const PORT = process.env.PORT || 5000;
 
 const { Server } = require("socket.io");
-const DriverLocation = require("./models/DriverLocation");
-const Product = require("./models/Product");
-const { syncSpreadsheetData } = require("./services/spreadsheetService");
+const DriverLocation = require("./src/models/DriverLocation");
+const Product = require("./src/models/Product");
+const { syncSpreadsheetData } = require("./src/services/spreadsheetService");
 
 // syncSpreadsheetData(); // Initial sync on startup
 
@@ -35,8 +35,8 @@ const startServer = async () => {
   }
 
   // Start HTTP server
-  const server = app.listen(PORT, async() => {
-    
+  const server = app.listen(PORT, async () => {
+
     console.log(
       `\n🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`,
     );
