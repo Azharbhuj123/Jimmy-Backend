@@ -1,0 +1,90 @@
+name: Deploy Backend – AWS Elastic Beanstalk
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Trigger: push to main (or master) only.
+# Add 'pull_request' triggers to the list if you also want CI checks on PRs.
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches:
+      - stagging
+
+jobs:
+  deploy:
+    name: Build & Deploy to Elastic Beanstalk
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout source code ─────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Node.js ───────────────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ── 3. Install production dependencies ─────────────────────────────────
+      #    We install ALL deps here so that the zip Elastic Beanstalk receives
+      #    already has node_modules/ and EB doesn't need to run npm install.
+      #    (Alternatively keep this step and let EB run npm install itself – see note below.)
+      - name: Install dependencies
+        run: npm install --omit=dev
+
+      # ── 4. Create a deployment zip ──────────────────────────────────────────
+      #    Elastic Beanstalk expects a zip of the application source.
+      #    We exclude files/folders that are not needed at runtime.
+      - name: Create deployment archive
+        run: |
+          zip -r deploy.zip . \
+            -x "*.git*" \
+            -x ".github/*" \
+            -x ".env*" \
+            -x "*.md" \
+            -x "src/DB/seeds/*" \
+            -x "Swagger/*" \
+            -x "*.log"
+
+      # ── 5. Configure AWS credentials ────────────────────────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+
+      # ── 6. Upload zip to S3 ─────────────────────────────────────────────────
+      #    Each deploy gets a unique key based on the short git SHA so older
+      #    versions remain available for rollback.
+      - name: Upload deployment package to S3
+        run: |
+          aws s3 cp deploy.zip \
+            s3://${{ secrets.EB_S3_BUCKET }}/jimmy-backend/deploy-${{ github.sha }}-${{ github.run_id }}.zip
+
+      # ── 7. Create a new EB application version ──────────────────────────────
+      - name: Create Elastic Beanstalk application version
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name  "${{ secrets.EB_APP_NAME }}" \
+            --version-label     "v-${{ github.sha }}-${{ github.run_id }}" \
+            --description       "Deploy from GitHub Actions – ${{ github.ref_name }} @ ${{ github.sha }}" \
+            --source-bundle     S3Bucket="${{ secrets.EB_S3_BUCKET }}",S3Key="jimmy-backend/deploy-${{ github.sha }}-${{ github.run_id }}.zip" \
+            --auto-create-application
+
+      # ── 8. Deploy the new version to the EB environment ─────────────────────
+      - name: Deploy to Elastic Beanstalk environment
+        run: |
+          aws elasticbeanstalk update-environment \
+            --application-name  "${{ secrets.EB_APP_NAME }}" \
+            --environment-name  "${{ secrets.EB_ENV_NAME }}" \
+            --version-label     "v-${{ github.sha }}-${{ github.run_id }}"
+
+      # ── 9. Wait for the environment to become healthy ────────────────────────
+      - name: Wait for deployment to finish
+        run: |
+          echo "Waiting for Elastic Beanstalk environment to reach Ready state..."
+          aws elasticbeanstalk wait environment-updated \
+            --application-name "${{ secrets.EB_APP_NAME }}" \
+            --environment-names "${{ secrets.EB_ENV_NAME }}"
+          echo "✅ Deployment complete!"
