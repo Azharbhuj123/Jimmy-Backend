@@ -67,10 +67,10 @@ jobs:
         run: |
           aws elasticbeanstalk create-application-version \
             --application-name  "${{ secrets.EB_APP_NAME }}" \
-            --version-label     "v-${{ github.sha }}-${{ github.run_id }}" \
+            --version-label     "v-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}" \
             --description       "Deploy from GitHub Actions – ${{ github.ref_name }} @ ${{ github.sha }}" \
             --source-bundle     S3Bucket="${{ secrets.EB_S3_BUCKET }}",S3Key="jimmy-backend/deploy-${{ github.sha }}-${{ github.run_id }}.zip" \
-            --auto-create-application
+            --auto-create-application || echo "Version already exists, continuing deployment..."
 
       # ── 8. Deploy the new version to the EB environment ─────────────────────
       - name: Deploy to Elastic Beanstalk environment
@@ -78,7 +78,7 @@ jobs:
           aws elasticbeanstalk update-environment \
             --application-name  "${{ secrets.EB_APP_NAME }}" \
             --environment-name  "${{ secrets.EB_ENV_NAME }}" \
-            --version-label     "v-${{ github.sha }}-${{ github.run_id }}"
+            --version-label     "v-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}"
 
       # ── 9. Wait for the environment to become healthy ────────────────────────
       - name: Wait for deployment to finish
